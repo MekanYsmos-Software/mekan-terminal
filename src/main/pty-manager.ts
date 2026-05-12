@@ -1,4 +1,5 @@
-import os from 'os';
+import fs from 'fs';
+import path from 'path';
 import type { BrowserWindow } from 'electron';
 import type { TerminalStatus } from '@shared/types';
 
@@ -19,7 +20,20 @@ let counter = 0;
 
 function detectShell(): string {
   if (process.platform === 'win32') {
-    return 'powershell.exe';
+    const pwshPaths = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps', 'pwsh.exe'),
+    ];
+    for (const p of pwshPaths) {
+      if (p && fs.existsSync(p)) return p;
+    }
+    try {
+      require('child_process').execSync('where pwsh.exe', { stdio: 'ignore' });
+      return 'pwsh.exe';
+    } catch {
+      // pwsh not found, fall back to cmd
+    }
+    return process.env.COMSPEC || 'cmd.exe';
   }
   return process.env.SHELL || '/bin/bash';
 }

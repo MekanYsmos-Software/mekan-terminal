@@ -6,6 +6,11 @@ import * as terminalIpc from './ipc/terminal';
 import * as gitIpc from './ipc/git';
 import * as ptyManager from './pty-manager';
 
+process.on('uncaughtException', (err) => {
+  if (err.message?.includes('Cannot resize a pty that has already exited')) return;
+  console.error('Uncaught exception:', err);
+});
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
