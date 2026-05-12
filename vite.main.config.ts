@@ -27,6 +27,9 @@ export default defineConfig({
     minify: false,
     emptyOutDir: true,
   },
+  define: {
+    'process.env': 'process.env',
+  },
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, 'src/shared'),

@@ -1,11 +1,16 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import * as ptyManager from '../pty-manager';
+import type { ShellType } from '@shared/types';
 
 export function register() {
-  ipcMain.handle('pty:spawn', (event, projectId: string, cwd: string) => {
+  ipcMain.handle('pty:spawn', (event, projectId: string, cwd: string, shellType?: ShellType) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) throw new Error('No window');
-    return ptyManager.spawn(projectId, cwd, win);
+    return ptyManager.spawn(projectId, cwd, win, shellType);
+  });
+
+  ipcMain.handle('pty:available-shells', () => {
+    return ptyManager.getAvailableShells();
   });
 
   ipcMain.on('pty:write', (_event, terminalId: string, data: string) => {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { IpcApi, TerminalStatus } from '@shared/types';
+import type { IpcApi, TerminalStatus, ShellType } from '@shared/types';
 
 const api: IpcApi = {
   project: {
@@ -11,7 +11,8 @@ const api: IpcApi = {
     selectFolder: () => ipcRenderer.invoke('project:select-folder'),
   },
   terminal: {
-    spawn: (projectId, cwd) => ipcRenderer.invoke('pty:spawn', projectId, cwd),
+    spawn: (projectId, cwd, shellType?) => ipcRenderer.invoke('pty:spawn', projectId, cwd, shellType),
+    getAvailableShells: () => ipcRenderer.invoke('pty:available-shells'),
     write: (terminalId, data) => ipcRenderer.send('pty:write', terminalId, data),
     resize: (terminalId, cols, rows) => ipcRenderer.send('pty:resize', terminalId, cols, rows),
     kill: (terminalId) => ipcRenderer.send('pty:kill', terminalId),

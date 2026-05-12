@@ -6,6 +6,7 @@ export interface Project {
 }
 
 export type TerminalStatus = 'idle' | 'running' | 'exited';
+export type ShellType = 'pwsh' | 'cmd' | 'wsl';
 
 export interface TerminalInstance {
   id: string;
@@ -13,7 +14,7 @@ export interface TerminalInstance {
   status: TerminalStatus;
   exitCode: number | null;
   cwd: string;
-  shell: string;
+  shell: ShellType;
 }
 
 export type SplitDirection = 'horizontal' | 'vertical';
@@ -69,7 +70,8 @@ export interface IpcApi {
     selectFolder(): Promise<string | null>;
   };
   terminal: {
-    spawn(projectId: string, cwd: string): Promise<string>;
+    spawn(projectId: string, cwd: string, shellType?: ShellType): Promise<string>;
+    getAvailableShells(): Promise<ShellType[]>;
     write(terminalId: string, data: string): void;
     resize(terminalId: string, cols: number, rows: number): void;
     kill(terminalId: string): void;

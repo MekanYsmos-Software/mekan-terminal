@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '@shared/types';
 import { useTerminalsStore } from '../../stores/terminals';
 
@@ -12,6 +13,7 @@ interface Props {
 
 export default function ProjectItem({ project, active, onClick, onRename, onRemove }: Props) {
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,6 +38,7 @@ export default function ProjectItem({ project, active, onClick, onRename, onRemo
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
+    setMenuPos({ x: e.clientX, y: e.clientY });
     setShowMenu(true);
   }
 
@@ -80,10 +83,11 @@ export default function ProjectItem({ project, active, onClick, onRename, onRemo
         <span className="text-xxs text-zinc-500 flex-shrink-0">{terminalCount}</span>
       )}
 
-      {showMenu && (
+      {showMenu && createPortal(
         <div
           ref={menuRef}
-          className="absolute left-full top-0 ml-1 z-50 bg-surface-2 border border-zinc-700 rounded shadow-lg py-1 min-w-[140px]"
+          className="fixed z-[9999] bg-surface-2 border border-zinc-700 rounded shadow-lg py-1 min-w-[140px]"
+          style={{ left: menuPos.x, top: menuPos.y }}
         >
           <button
             className="w-full text-left px-3 py-1.5 text-sm text-zinc-300 hover:bg-surface-3"
@@ -106,7 +110,8 @@ export default function ProjectItem({ project, active, onClick, onRename, onRemo
           >
             Remove
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

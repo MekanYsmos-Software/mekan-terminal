@@ -1,7 +1,7 @@
 import fs from 'fs';
-import path from 'path';
+import { execSync } from 'child_process';
 import type { BrowserWindow } from 'electron';
-import type { TerminalStatus } from '@shared/types';
+import type { TerminalStatus, ShellType } from '@shared/types';
 
 const pty = require('node-pty');
 
@@ -12,37 +12,69 @@ interface PtyEntry {
   status: TerminalStatus;
   exitCode: number | null;
   cwd: string;
-  shell: string;
+  shellType: ShellType;
 }
 
 const instances = new Map<string, PtyEntry>();
 let counter = 0;
 
-function detectShell(): string {
-  if (process.platform === 'win32') {
-    const pwshPaths = [
-      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe'),
-      path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps', 'pwsh.exe'),
-    ];
-    for (const p of pwshPaths) {
-      if (p && fs.existsSync(p)) return p;
+const shellPaths: Record<string, string> = {};
+
+function findPwsh(): string | null {
+  if (shellPaths['pwsh']) return shellPaths['pwsh'];
+  const candidates = [
+    'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    'C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe',
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      shellPaths['pwsh'] = p;
+      return p;
     }
-    try {
-      require('child_process').execSync('where pwsh.exe', { stdio: 'ignore' });
-      return 'pwsh.exe';
-    } catch {
-      // pwsh not found, fall back to cmd
-    }
-    return process.env.COMSPEC || 'cmd.exe';
   }
-  return process.env.SHELL || '/bin/bash';
+  return null;
 }
 
-export function spawn(projectId: string, cwd: string, win: BrowserWindow): string {
-  const id = `term-${++counter}`;
-  const shell = detectShell();
+function hasWsl(): boolean {
+  if (shellPaths['wsl'] !== undefined) return shellPaths['wsl'] !== '';
+  try {
+    execSync('where wsl.exe', { stdio: 'ignore' });
+    shellPaths['wsl'] = 'wsl.exe';
+    return true;
+  } catch {
+    shellPaths['wsl'] = '';
+    return false;
+  }
+}
 
-  const proc = pty.spawn(shell, [], {
+export function getAvailableShells(): ShellType[] {
+  const shells: ShellType[] = [];
+  if (findPwsh()) shells.push('pwsh');
+  shells.push('cmd');
+  if (hasWsl()) shells.push('wsl');
+  return shells;
+}
+
+function resolveShell(shellType: ShellType): { exe: string; args: string[] } {
+  switch (shellType) {
+    case 'pwsh': {
+      const p = findPwsh();
+      return { exe: p || 'cmd.exe', args: [] };
+    }
+    case 'wsl':
+      return { exe: 'wsl.exe', args: [] };
+    case 'cmd':
+    default:
+      return { exe: 'cmd.exe', args: [] };
+  }
+}
+
+export function spawn(projectId: string, cwd: string, win: BrowserWindow, shellType?: ShellType): string {
+  const id = `term-${++counter}`;
+  const type = shellType || (findPwsh() ? 'pwsh' : 'cmd');
+  const { exe, args } = resolveShell(type);
+
+  const proc = pty.spawn(exe, args, {
     name: 'xterm-256color',
     cols: 80,
     rows: 24,
@@ -57,7 +89,7 @@ export function spawn(projectId: string, cwd: string, win: BrowserWindow): strin
     status: 'running',
     exitCode: null,
     cwd,
-    shell,
+    shellType: type,
   };
 
   proc.onData((data: string) => {
@@ -120,8 +152,9 @@ export function kill(id: string) {
 export function restart(id: string, win: BrowserWindow): string | null {
   const entry = instances.get(id);
   if (!entry) return null;
+  const { projectId, cwd, shellType } = entry;
   kill(id);
-  return spawn(entry.projectId, entry.cwd, win);
+  return spawn(projectId, cwd, win, shellType);
 }
 
 export function killAll() {

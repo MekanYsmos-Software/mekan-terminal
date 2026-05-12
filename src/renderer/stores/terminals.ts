@@ -1,15 +1,18 @@
 import { create } from 'zustand';
-import type { TerminalInstance, LayoutNode, LeafNode, SplitNode, SplitDirection } from '@shared/types';
+import type { TerminalInstance, LayoutNode, LeafNode, SplitNode, SplitDirection, ShellType } from '@shared/types';
 
 interface TerminalsState {
   terminals: Record<string, TerminalInstance[]>;
   layouts: Record<string, LayoutNode | null>;
+  availableShells: ShellType[];
 
-  spawnTerminal(projectId: string, cwd: string): Promise<string>;
+  loadShells(): Promise<void>;
+  spawnTerminal(projectId: string, cwd: string, shellType?: ShellType): Promise<string>;
   killTerminal(projectId: string, terminalId: string): void;
   restartTerminal(terminalId: string): Promise<string | null>;
   updateStatus(projectId: string, terminalId: string, status: TerminalInstance['status'], exitCode: number | null): void;
-  splitPane(projectId: string, terminalId: string, direction: SplitDirection, cwd: string): Promise<void>;
+  addTerminalToGrid(projectId: string, cwd: string, shellType?: ShellType): Promise<void>;
+  splitPane(projectId: string, terminalId: string, direction: SplitDirection, cwd: string, shellType?: ShellType): Promise<void>;
   closePane(projectId: string, terminalId: string): void;
   loadLayout(projectId: string): Promise<void>;
   saveLayout(projectId: string): Promise<void>;
@@ -52,21 +55,36 @@ function insertSplit(
   };
 }
 
+function findFirstLeaf(node: LayoutNode | null): string | null {
+  if (!node) return null;
+  if (node.type === 'leaf') return node.terminalId;
+  for (const child of node.children) {
+    const found = findFirstLeaf(child);
+    if (found) return found;
+  }
+  return null;
+}
+
 export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   terminals: {},
   layouts: {},
+  availableShells: [],
 
-  async spawnTerminal(projectId, cwd) {
-    const id = await window.mekan.terminal.spawn(projectId, cwd);
-    const instance: TerminalInstance = { id, projectId, status: 'running', exitCode: null, cwd, shell: '' };
+  async loadShells() {
+    const shells = await window.mekan.terminal.getAvailableShells();
+    set({ availableShells: shells });
+  },
+
+  async spawnTerminal(projectId, cwd, shellType?) {
+    const id = await window.mekan.terminal.spawn(projectId, cwd, shellType);
+    const instance: TerminalInstance = { id, projectId, status: 'running', exitCode: null, cwd, shell: shellType || get().availableShells[0] || 'cmd' };
     set((s) => {
       const projectTerminals = [...(s.terminals[projectId] || []), instance];
       const currentLayout = s.layouts[projectId];
       const newLeaf: LeafNode = { type: 'leaf', terminalId: id };
-      const newLayout = currentLayout ? currentLayout : newLeaf;
       return {
         terminals: { ...s.terminals, [projectId]: projectTerminals },
-        layouts: { ...s.layouts, [projectId]: currentLayout ? currentLayout : newLayout },
+        layouts: { ...s.layouts, [projectId]: currentLayout ? currentLayout : newLeaf },
       };
     });
     return id;
@@ -98,10 +116,22 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     }));
   },
 
-  async splitPane(projectId, terminalId, direction, cwd) {
+  async addTerminalToGrid(projectId, cwd, shellType?) {
     if (get().getTerminalCount(projectId) >= 6) return;
-    const newId = await window.mekan.terminal.spawn(projectId, cwd);
-    const instance: TerminalInstance = { id: newId, projectId, status: 'running', exitCode: null, cwd, shell: '' };
+    const layout = get().layouts[projectId];
+    const firstLeaf = findFirstLeaf(layout);
+    if (firstLeaf) {
+      await get().splitPane(projectId, firstLeaf, 'horizontal', cwd, shellType);
+    } else {
+      await get().spawnTerminal(projectId, cwd, shellType);
+    }
+  },
+
+  async splitPane(projectId, terminalId, direction, cwd, shellType?) {
+    if (get().getTerminalCount(projectId) >= 6) return;
+    const newId = await window.mekan.terminal.spawn(projectId, cwd, shellType);
+    const shell = shellType || get().availableShells[0] || 'cmd';
+    const instance: TerminalInstance = { id: newId, projectId, status: 'running', exitCode: null, cwd, shell };
     const newLeaf: LeafNode = { type: 'leaf', terminalId: newId };
     set((s) => {
       const projectTerminals = [...(s.terminals[projectId] || []), instance];
