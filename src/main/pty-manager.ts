@@ -72,21 +72,33 @@ export function spawn(projectId: string, cwd: string, win: BrowserWindow): strin
 export function write(id: string, data: string) {
   const entry = instances.get(id);
   if (entry && entry.status === 'running') {
-    entry.process.write(data);
+    try {
+      entry.process.write(data);
+    } catch {
+      // PTY already exited
+    }
   }
 }
 
 export function resize(id: string, cols: number, rows: number) {
   const entry = instances.get(id);
   if (entry && entry.status === 'running') {
-    entry.process.resize(cols, rows);
+    try {
+      entry.process.resize(cols, rows);
+    } catch {
+      // PTY already exited between status check and resize call
+    }
   }
 }
 
 export function kill(id: string) {
   const entry = instances.get(id);
-  if (entry && entry.status === 'running') {
-    entry.process.kill();
+  if (entry) {
+    try {
+      entry.process.kill();
+    } catch {
+      // already dead
+    }
   }
   instances.delete(id);
 }
