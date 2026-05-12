@@ -29,7 +29,7 @@ export default function GitPanel() {
 
   return (
     <div className="w-[280px] bg-surface-1 border-l border-zinc-800 flex flex-col h-full overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800" style={{ marginTop: 36 }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
         <span className="text-sm font-semibold text-zinc-300">Git</span>
         {loading && <span className="text-xxs text-zinc-500">refreshing...</span>}
         <button

@@ -22,16 +22,21 @@ export default function App() {
   const collapsed = windowWidth < 800;
 
   return (
-    <div className="flex h-screen w-screen bg-surface-0 text-zinc-200 overflow-hidden">
-      <div className={collapsed ? 'w-12' : 'w-60'} style={{ flexShrink: 0 }}>
-        <Sidebar />
+    <div className="flex flex-col h-screen w-screen bg-surface-0 text-zinc-200 overflow-hidden">
+      <div className="titlebar-drag h-9 bg-surface-1 border-b border-zinc-800 flex items-center px-3 flex-shrink-0">
+        <span className="text-xs font-semibold text-zinc-400">Mekan Terminal</span>
       </div>
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 flex min-h-0">
-          <TerminalGrid />
-          <GitPanel />
+      <div className="flex flex-1 min-h-0">
+        <div className={collapsed ? 'w-12' : 'w-60'} style={{ flexShrink: 0 }}>
+          <Sidebar />
         </div>
-        <StatusBar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex min-h-0">
+            <TerminalGrid />
+            <GitPanel />
+          </div>
+          <StatusBar />
+        </div>
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ export default function Sidebar() {
 
   return (
     <div className="flex flex-col h-full bg-surface-1 border-r border-zinc-800">
-      <div className="p-3 flex items-center justify-between border-b border-zinc-800" style={{ marginTop: 36 }}>
+      <div className="p-3 flex items-center justify-between border-b border-zinc-800">
         <span className="text-sm font-semibold text-zinc-300">Projects</span>
         <button
           onClick={addProject}
