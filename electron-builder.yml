@@ -1,0 +1,17 @@
+appId: com.mekan.terminal
+productName: Mekan Terminal
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - resources/**/*
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
