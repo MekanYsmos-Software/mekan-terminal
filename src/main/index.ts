@@ -3,6 +3,7 @@ import path from 'path';
 import * as configStore from './config-store';
 import * as projectsIpc from './ipc/projects';
 import * as terminalIpc from './ipc/terminal';
+import * as gitIpc from './ipc/git';
 import * as ptyManager from './pty-manager';
 
 let mainWindow: BrowserWindow | null = null;
@@ -45,6 +46,7 @@ app.whenReady().then(() => {
   configStore.init();
   projectsIpc.register();
   terminalIpc.register();
+  gitIpc.register();
   createWindow();
 });
 
