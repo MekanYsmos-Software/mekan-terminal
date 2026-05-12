@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
+import * as configStore from './config-store';
+import * as projectsIpc from './ipc/projects';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -37,7 +39,11 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  configStore.init();
+  projectsIpc.register();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   app.quit();
