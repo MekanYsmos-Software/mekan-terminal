@@ -4,12 +4,15 @@ import path from 'path';
 export default defineConfig({
   build: {
     outDir: 'dist/main',
-    lib: {
-      entry: path.resolve(__dirname, 'src/main/index.ts'),
-      formats: ['cjs'],
-      fileName: () => 'index.js',
-    },
     rollupOptions: {
+      input: {
+        index: path.resolve(__dirname, 'src/main/index.ts'),
+        preload: path.resolve(__dirname, 'src/main/preload.ts'),
+      },
+      output: {
+        format: 'cjs',
+        entryFileNames: '[name].js',
+      },
       external: ['electron', 'node-pty', 'chokidar', 'simple-git'],
     },
     minify: false,
