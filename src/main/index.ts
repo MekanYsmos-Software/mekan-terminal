@@ -2,6 +2,8 @@ import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import * as configStore from './config-store';
 import * as projectsIpc from './ipc/projects';
+import * as terminalIpc from './ipc/terminal';
+import * as ptyManager from './pty-manager';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -42,7 +44,12 @@ function createWindow() {
 app.whenReady().then(() => {
   configStore.init();
   projectsIpc.register();
+  terminalIpc.register();
   createWindow();
+});
+
+app.on('before-quit', () => {
+  ptyManager.killAll();
 });
 
 app.on('window-all-closed', () => {
