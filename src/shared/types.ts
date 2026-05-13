@@ -5,6 +5,7 @@ export interface Project {
   order: number;
   serverCommand?: string;
   logo?: string;
+  worktreeBasePath?: string;
 }
 
 export type TerminalStatus = 'idle' | 'running' | 'exited';
@@ -19,6 +20,7 @@ export interface TerminalInstance {
   shell: ShellType;
   isServer: boolean;
   name: string;
+  busy: boolean;
 }
 
 export interface TerminalConfig {
@@ -64,6 +66,22 @@ export interface GitPullRequest {
   draft: boolean;
 }
 
+export type TaskStatus = 'todo' | 'ongoing' | 'done';
+
+export interface ProjectTask {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  dueDate: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface DirEntry {
+  name: string;
+  type: 'file' | 'directory';
+}
+
 export interface IpcApi {
   project: {
     list(): Promise<Project[]>;
@@ -72,6 +90,7 @@ export interface IpcApi {
     rename(id: string, name: string): Promise<void>;
     reorder(ids: string[]): Promise<void>;
     setServerCommand(id: string, command: string): Promise<void>;
+    setWorktreeBase(id: string, basePath: string): Promise<void>;
     selectFolder(): Promise<string | null>;
     setLogo(id: string): Promise<string | null>;
     clearLogo(id: string): Promise<void>;
@@ -94,12 +113,34 @@ export interface IpcApi {
     pullRequests(projectPath: string): Promise<GitPullRequest[]>;
     worktreeAdd(projectPath: string, path: string, branch: string, createBranch: boolean): Promise<void>;
     worktreeRemove(projectPath: string, worktreePath: string): Promise<void>;
+    getUser(projectPath: string): Promise<{ name: string; email: string }>;
+    setUser(projectPath: string, name: string, email: string): Promise<void>;
   };
   layout: {
     load(projectId: string): Promise<ProjectLayout | null>;
     save(layout: ProjectLayout): Promise<void>;
   };
+  tasks: {
+    list(projectId: string): Promise<ProjectTask[]>;
+    save(projectId: string, tasks: ProjectTask[]): Promise<void>;
+  };
+  fs: {
+    readdir(dirPath: string): Promise<DirEntry[]>;
+    readFile(filePath: string): Promise<string>;
+    writeFile(filePath: string, content: string): Promise<void>;
+  };
   shell: {
     openExternal(url: string): Promise<void>;
+  };
+  window: {
+    minimize(): void;
+    maximize(): void;
+    close(): void;
+    flashIfBlurred(): void;
+  };
+  updater: {
+    onUpdateAvailable(callback: (version: string) => void): () => void;
+    onUpdateDownloaded(callback: (version: string) => void): () => void;
+    install(): void;
   };
 }
