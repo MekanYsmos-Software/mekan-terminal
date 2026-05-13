@@ -9,7 +9,8 @@ import PullRequestSection from './PullRequestSection';
 export default function GitPanel({ onCollapse }: { onCollapse(): void }) {
   const refresh = useGitStore((s) => s.refresh);
   const loading = useGitStore((s) => s.loading);
-  const activeProjectPath = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.path ?? null);
+  const activeProject = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId) ?? null);
+  const activeProjectPath = activeProject?.path ?? null;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshPRs = useGitStore((s) => s.refreshPRs);
@@ -34,7 +35,7 @@ export default function GitPanel({ onCollapse }: { onCollapse(): void }) {
     };
   }, [activeProjectPath, refresh, refreshPRs]);
 
-  if (!activeProjectPath) return null;
+  if (!activeProject || !activeProjectPath) return null;
 
   return (
     <div className="w-full bg-gradient-sidebar border-l border-border flex flex-col h-full overflow-hidden">
@@ -64,7 +65,7 @@ export default function GitPanel({ onCollapse }: { onCollapse(): void }) {
       </div>
       <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
         <BranchSection />
-        <WorktreeSection projectPath={activeProjectPath} />
+        <WorktreeSection project={activeProject} />
         <PullRequestSection />
         <CommitSection />
       </div>

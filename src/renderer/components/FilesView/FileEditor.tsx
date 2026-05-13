@@ -1,7 +1,29 @@
 import { useRef, useCallback, useEffect } from 'react';
-import Editor, { type Monaco } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import Editor, { loader, type Monaco } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { useFilesStore } from '../../stores/files';
+
+self.MonacoEnvironment = {
+  getWorker(_workerId: string, label: string) {
+    const getWorkerModule = (moduleUrl: string) => {
+      return new Worker(new URL(moduleUrl, import.meta.url), { type: 'module' });
+    };
+    switch (label) {
+      case 'json': return getWorkerModule('monaco-editor/esm/vs/language/json/json.worker?worker');
+      case 'css':
+      case 'scss':
+      case 'less': return getWorkerModule('monaco-editor/esm/vs/language/css/css.worker?worker');
+      case 'html':
+      case 'handlebars':
+      case 'razor': return getWorkerModule('monaco-editor/esm/vs/language/html/html.worker?worker');
+      case 'typescript':
+      case 'javascript': return getWorkerModule('monaco-editor/esm/vs/language/typescript/ts.worker?worker');
+      default: return getWorkerModule('monaco-editor/esm/vs/editor/editor.worker?worker');
+    }
+  },
+};
+
+loader.config({ monaco });
 
 const EXTENSION_LANGUAGE: Record<string, string> = {
   ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
@@ -20,11 +42,11 @@ export default function FileEditor() {
   const activeTab = useFilesStore((s) => s.openTabs.find((t) => t.filePath === s.activeTabPath));
   const updateContent = useFilesStore((s) => s.updateContent);
   const saveFile = useFilesStore((s) => s.saveFile);
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
-  const handleMount = useCallback((ed: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+  const handleMount = useCallback((ed: monaco.editor.IStandaloneCodeEditor, _monaco: Monaco) => {
     editorRef.current = ed;
-    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+    ed.addCommand(_monaco.KeyMod.CtrlCmd | _monaco.KeyCode.KeyS, () => {
       const path = useFilesStore.getState().activeTabPath;
       if (path) saveFile(path);
     });

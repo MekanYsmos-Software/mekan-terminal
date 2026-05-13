@@ -2,7 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import crypto from 'crypto';
 import path from 'path';
 import * as configStore from '../config-store';
-import type { Project, ProjectLayout } from '@shared/types';
+import type { Project, ProjectLayout, ProjectTask } from '@shared/types';
 
 export function register() {
   ipcMain.handle('project:list', (): Project[] => {
@@ -59,6 +59,15 @@ export function register() {
     }
   });
 
+  ipcMain.handle('project:set-worktree-base', (_event, id: string, basePath: string) => {
+    const projects = configStore.readProjects() as Project[];
+    const project = projects.find((p) => p.id === id);
+    if (project) {
+      (project as any).worktreeBasePath = basePath || undefined;
+      configStore.writeProjects(projects);
+    }
+  });
+
   ipcMain.handle('project:select-folder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return null;
@@ -104,5 +113,13 @@ export function register() {
       delete (project as any).logo;
       configStore.writeProjects(projects);
     }
+  });
+
+  ipcMain.handle('tasks:list', (_event, projectId: string): ProjectTask[] => {
+    return configStore.readTasks(projectId) as ProjectTask[];
+  });
+
+  ipcMain.handle('tasks:save', (_event, projectId: string, tasks: ProjectTask[]) => {
+    configStore.writeTasks(projectId, tasks);
   });
 }

@@ -4,10 +4,11 @@ import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon } from 'xterm-addon-search';
 import 'xterm/css/xterm.css';
+import type { TerminalStatus } from '@shared/types';
 
 interface UseTerminalOptions {
   terminalId: string;
-  onStatusChange?: (status: 'running' | 'exited', exitCode: number | null) => void;
+  onStatusChange?: (status: TerminalStatus, exitCode: number | null) => void;
   onBusyChange?: (busy: boolean) => void;
 }
 
@@ -58,7 +59,7 @@ export function useTerminal({ terminalId, onStatusChange, onBusyChange }: UseTer
         brightCyan: '#67e8f9',
         brightWhite: '#fafafa',
       },
-      fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+      fontFamily: "'Cascadia Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize: 14,
       lineHeight: 1.2,
       cursorBlink: true,
@@ -81,9 +82,21 @@ export function useTerminal({ terminalId, onStatusChange, onBusyChange }: UseTer
     fitRef.current = fitAddon;
     searchRef.current = searchAddon;
 
-    requestAnimationFrame(() => fitAddon.fit());
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+      window.mekan.terminal.resize(terminalId, term.cols, term.rows);
+    });
 
     term.attachCustomKeyEventHandler((e) => {
+      if (e.ctrlKey && e.key === 'v') {
+        if (e.type === 'keydown') {
+          e.preventDefault();
+          navigator.clipboard.readText().then((text) => {
+            if (text) window.mekan.terminal.write(terminalId, text);
+          });
+        }
+        return false;
+      }
       if (e.type !== 'keydown') return true;
       if (e.ctrlKey && e.key === 'c' && term.hasSelection()) {
         navigator.clipboard.writeText(term.getSelection());
@@ -92,12 +105,6 @@ export function useTerminal({ terminalId, onStatusChange, onBusyChange }: UseTer
       }
       if (e.ctrlKey && e.key === 'Enter') {
         window.mekan.terminal.write(terminalId, '\n');
-        return false;
-      }
-      if (e.ctrlKey && e.key === 'v') {
-        navigator.clipboard.readText().then((text) => {
-          if (text) window.mekan.terminal.write(terminalId, text);
-        });
         return false;
       }
       return true;
@@ -109,15 +116,18 @@ export function useTerminal({ terminalId, onStatusChange, onBusyChange }: UseTer
 
     let busyTimer: ReturnType<typeof setTimeout> | null = null;
     let isBusy = false;
+    const CURSOR_COLOR = '#6366f1';
     const removeDataListener = window.mekan.terminal.onData(terminalId, (data) => {
       term.write(data);
       if (!isBusy) {
         isBusy = true;
+        term.options.theme = { ...term.options.theme, cursor: 'transparent', cursorAccent: 'transparent' };
         onBusyChange?.(true);
       }
       if (busyTimer) clearTimeout(busyTimer);
       busyTimer = setTimeout(() => {
         isBusy = false;
+        term.options.theme = { ...term.options.theme, cursor: CURSOR_COLOR, cursorAccent: '#09090b' };
         onBusyChange?.(false);
       }, 800);
     });
@@ -126,24 +136,27 @@ export function useTerminal({ terminalId, onStatusChange, onBusyChange }: UseTer
       onStatusChange?.(status, exitCode);
     });
 
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId: number | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        requestAnimationFrame(() => {
-          try {
-            fitAddon.fit();
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        try {
+          const prevCols = term.cols;
+          const prevRows = term.rows;
+          fitAddon.fit();
+          if (term.cols !== prevCols || term.rows !== prevRows) {
             window.mekan.terminal.resize(terminalId, term.cols, term.rows);
-          } catch {
-            // not visible
           }
-        });
-      }, 100);
+        } catch {
+          // not visible
+        }
+      });
     });
     resizeObserver.observe(containerRef.current);
 
     return () => {
-      if (resizeTimer) clearTimeout(resizeTimer);
+      if (rafId) cancelAnimationFrame(rafId);
       if (busyTimer) clearTimeout(busyTimer);
       resizeObserver.disconnect();
       removeDataListener();

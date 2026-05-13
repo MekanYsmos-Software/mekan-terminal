@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useProjectsStore } from '../../stores/projects';
 import { useTerminalsStore } from '../../stores/terminals';
 import { useGitStore } from '../../stores/git';
+import { useTasksStore } from '../../stores/tasks';
 import TerminalPane from '../TerminalPane/TerminalPane';
+import TasksPopup from '../TasksPopup/TasksPopup';
+import FilesView from '../FilesView/FilesView';
+import { useFilesStore } from '../../stores/files';
 import type { ShellType, TerminalInstance } from '@shared/types';
 
 const SHELL_LABELS: Record<ShellType, string> = {
@@ -12,6 +16,7 @@ const SHELL_LABELS: Record<ShellType, string> = {
 };
 
 const EMPTY_TERMINALS: TerminalInstance[] = [];
+const EMPTY_TASKS: import('@shared/types').ProjectTask[] = [];
 
 function getGridStyle(count: number): React.CSSProperties {
   if (count <= 1) return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
@@ -33,24 +38,32 @@ export default function TerminalGrid() {
   const loadShells = useTerminalsStore((s) => s.loadShells);
   const worktrees = useGitStore((s) => s.worktrees);
   const allProjectTerminals = activeProjectId ? (allTerminals[activeProjectId] ?? EMPTY_TERMINALS) : EMPTY_TERMINALS;
-  const terminals = allProjectTerminals.filter((t) => !t.isServer);
+  const terminals = useMemo(() => allProjectTerminals.filter((t) => !t.isServer), [allProjectTerminals]);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [showTasks, setShowTasks] = useState(false);
+  const tasksButtonRef = useRef<HTMLButtonElement>(null);
+  const restoringRef = useRef<string | null>(null);
+  const projectTasks = useTasksStore((s) => activeProjectId ? (s.tasks[activeProjectId] ?? EMPTY_TASKS) : EMPTY_TASKS);
+  const loadTasks = useTasksStore((s) => s.loadTasks);
+  const pendingCount = useMemo(() => projectTasks.filter((t) => t.status !== 'done').length, [projectTasks]);
+  const filesView = useFilesStore((s) => s.view);
+  const setFilesView = useFilesStore((s) => s.setView);
 
   useEffect(() => {
     loadShells();
   }, [loadShells]);
 
   useEffect(() => {
-    if (activeProjectId && activeProjectPath && terminals.length === 0) {
-      restoreTerminals(activeProjectId).then(() => {
-        const current = useTerminalsStore.getState().terminals[activeProjectId] || [];
-        if (current.filter((t) => !t.isServer).length === 0) {
-          spawnTerminal(activeProjectId, activeProjectPath);
-        }
-      });
-    }
-  }, [activeProjectId, activeProjectPath, terminals.length, spawnTerminal, restoreTerminals]);
+    if (activeProjectId) loadTasks(activeProjectId);
+  }, [activeProjectId, loadTasks]);
+
+  useEffect(() => {
+    if (!activeProjectId || !activeProjectPath || restoringRef.current === activeProjectId) return;
+    if (terminals.length > 0) return;
+    restoringRef.current = activeProjectId;
+    restoreTerminals(activeProjectId);
+  }, [activeProjectId, activeProjectPath]);
 
   if (!activeProjectId || !activeProjectPath) {
     return (
@@ -130,22 +143,90 @@ export default function TerminalGrid() {
             )}
           </div>
         )}
+        <div className="relative">
+          <button
+            ref={tasksButtonRef}
+            onClick={() => setShowTasks(!showTasks)}
+            className="flex items-center gap-1.5 text-xxs text-zinc-500 hover:text-white px-2.5 py-1 rounded-md bg-surface-3 hover:bg-surface-4 transition-all duration-200 font-medium"
+          >
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M4 6h8M4 9h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Tasks
+            {pendingCount > 0 && (
+              <span className="bg-amber-500/20 text-amber-400 text-xxs px-1 rounded-sm font-mono">{pendingCount}</span>
+            )}
+          </button>
+          {activeProjectId && (
+            <TasksPopup
+              projectId={activeProjectId}
+              open={showTasks}
+              onClose={() => setShowTasks(false)}
+              anchorRef={tasksButtonRef}
+            />
+          )}
+        </div>
+        <button
+          onClick={() => setFilesView(filesView === 'files' ? 'terminals' : 'files')}
+          className={`flex items-center gap-1.5 text-xxs px-2.5 py-1 rounded-md transition-all duration-200 font-medium ${
+            filesView === 'files'
+              ? 'bg-accent/20 text-accent'
+              : 'text-zinc-500 hover:text-white bg-surface-3 hover:bg-surface-4'
+          }`}
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+          Files
+        </button>
         <div className="flex-1" />
       </div>
-      <div
-        className="flex-1 min-h-0 min-w-0 grid gap-[1px] bg-border"
-        style={getGridStyle(terminals.length)}
-      >
-        {terminals.map((t) => (
-          <div key={t.id} className="bg-surface-0 min-h-0 min-w-0">
-            <TerminalPane
-              terminalId={t.id}
-              projectId={activeProjectId}
-              cwd={t.cwd}
-            />
+      {filesView === 'files' ? (
+        <FilesView projectPath={activeProjectPath!} />
+      ) : terminals.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center mx-auto mb-3">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-zinc-700">
+                <path d="M4 17l6-6-6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M12 19h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div className="text-sm text-zinc-600 mb-4">No terminals open</div>
+            <div className="flex items-center justify-center gap-2">
+              {availableShells.map((shell) => (
+                <button
+                  key={shell}
+                  onClick={() => handleNewTerminal(shell)}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-accent hover:shadow-glow-sm transition-all duration-200 font-medium border border-border hover:border-accent"
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  {SHELL_LABELS[shell]}
+                </button>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div
+          className="flex-1 min-h-0 min-w-0 grid gap-[1px] bg-border"
+          style={getGridStyle(terminals.length)}
+        >
+          {terminals.map((t, i) => (
+            <div key={t.id} className="bg-surface-0 min-h-0 min-w-0">
+              <TerminalPane
+                terminalId={t.id}
+                projectId={activeProjectId}
+                cwd={t.cwd}
+                index={i}
+                totalCount={terminals.length}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

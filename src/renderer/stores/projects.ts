@@ -12,6 +12,7 @@ interface ProjectsState {
   renameProject(id: string, name: string): Promise<void>;
   reorderProjects(ids: string[]): Promise<void>;
   setServerCommand(id: string, command: string): Promise<void>;
+  setWorktreeBase(id: string, basePath: string): Promise<void>;
   setLogo(id: string): Promise<void>;
   clearLogo(id: string): Promise<void>;
   setActiveProject(id: string): void;
@@ -77,6 +78,13 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     await window.mekan.project.setServerCommand(id, command);
     set((s) => ({
       projects: s.projects.map((p) => (p.id === id ? { ...p, serverCommand: command } : p)),
+    }));
+  },
+
+  async setWorktreeBase(id, basePath) {
+    await window.mekan.project.setWorktreeBase(id, basePath);
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, worktreeBasePath: basePath || undefined } : p)),
     }));
   },
 

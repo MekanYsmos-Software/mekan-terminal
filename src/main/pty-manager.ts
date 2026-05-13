@@ -85,14 +85,19 @@ function resolveShell(shellType: ShellType): { exe: string; args: string[] } {
     case 'pwsh': {
       const p = findPwsh();
       if (!p) return { exe: 'cmd.exe', args: [] };
-      const args = ['-NoLogo'];
+      const parts: string[] = [];
       if (pwshProfilePath) {
-        const sources = pwshProfilePath.split('|')
-          .map((prof) => `. '${prof.replace(/'/g, "''")}'`)
-          .join('; ');
-        args.push('-NoExit', '-Command', sources);
+        for (const prof of pwshProfilePath.split('|')) {
+          parts.push(`. '${prof.replace(/'/g, "''")}'`);
+        }
       }
-      return { exe: p, args };
+      parts.push(
+        'Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete',
+        'Set-PSReadLineOption -PredictionSource History',
+        'Set-PSReadLineOption -PredictionViewStyle ListView',
+        'Clear-Host',
+      );
+      return { exe: p, args: ['-NoLogo', '-NoExit', '-Command', parts.join('; ')] };
     }
     case 'wsl':
       return { exe: 'wsl.exe', args: [] };

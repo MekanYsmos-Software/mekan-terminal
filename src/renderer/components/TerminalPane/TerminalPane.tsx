@@ -10,9 +10,11 @@ interface Props {
   projectId: string;
   cwd: string;
   hideHeader?: boolean;
+  index?: number;
+  totalCount?: number;
 }
 
-export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }: Props) {
+export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, index, totalCount }: Props) {
   const [status, setStatus] = useState<TerminalStatus>('running');
   const [exitCode, setExitCode] = useState<number | null>(null);
   const [hovered, setHovered] = useState(false);
@@ -25,10 +27,12 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }:
   const removeTerminal = useTerminalsStore((s) => s.removeTerminal);
   const restartTerminal = useTerminalsStore((s) => s.restartTerminal);
   const renameTerminal = useTerminalsStore((s) => s.renameTerminal);
+  const reorderTerminals = useTerminalsStore((s) => s.reorderTerminals);
   const allTerminals = useTerminalsStore((s) => s.terminals);
   const terminal = (allTerminals[projectId] ?? []).find((t) => t.id === terminalId);
   const [editName, setEditName] = useState(terminal?.name ?? '');
-  const [busy, setBusy] = useState(false);
+  const setBusy = useTerminalsStore((s) => s.setBusy);
+  const busy = terminal?.busy ?? false;
 
   const worktrees = useGitStore((s) => s.worktrees);
   const branches = useGitStore((s) => s.branches);
@@ -45,7 +49,7 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }:
     : currentBranch?.name ?? null;
 
   const onStatusChange = useCallback(
-    (newStatus: 'running' | 'exited', code: number | null) => {
+    (newStatus: TerminalStatus, code: number | null) => {
       setStatus(newStatus);
       setExitCode(code);
       useTerminalsStore.getState().updateStatus(projectId, terminalId, newStatus, code);
@@ -53,7 +57,7 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }:
     [projectId, terminalId]
   );
 
-  const onBusyChange = useCallback((b: boolean) => setBusy(b), []);
+  const onBusyChange = useCallback((b: boolean) => setBusy(projectId, terminalId, b), [projectId, terminalId, setBusy]);
 
   const { containerRef, searchNext, searchPrev, searchClear } = useTerminal({ terminalId, onStatusChange, onBusyChange });
 
@@ -136,8 +140,8 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }:
         ) : (
           <span
             className="text-xxs text-zinc-500 font-medium truncate cursor-pointer hover:text-zinc-300 transition-colors"
-            onDoubleClick={startRename}
-            title="Double-click to rename"
+            onClick={(e) => { e.stopPropagation(); startRename(); }}
+            title="Click to rename"
           >
             {terminal?.name ?? 'Terminal'}
           </span>
@@ -159,6 +163,28 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }:
         <div className="flex-1 min-w-0" />
         {hovered && !editing && (
           <div className="flex items-center gap-0.5 animate-fade-in">
+            {totalCount != null && totalCount > 1 && index != null && (
+              <>
+                {index > 0 && (
+                  <button
+                    onClick={() => reorderTerminals(projectId, index, index - 1)}
+                    className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-white hover:bg-surface-3 transition-all"
+                    title="Move left"
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M5 1L2 4L5 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                )}
+                {index < totalCount - 1 && (
+                  <button
+                    onClick={() => reorderTerminals(projectId, index, index + 1)}
+                    className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-white hover:bg-surface-3 transition-all"
+                    title="Move right"
+                  >
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M3 1L6 4L3 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                )}
+              </>
+            )}
             {status === 'exited' && (
               <button onClick={handleRestart} className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-white hover:bg-surface-3 transition-all" title="Restart">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0110.89-3.48M14 8a6 6 0 01-10.89 3.48" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M14 2v4h-4M2 14v-4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>

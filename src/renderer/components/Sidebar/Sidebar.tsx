@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProjectsStore } from '../../stores/projects';
+import { useTerminalsStore } from '../../stores/terminals';
 import ProjectItem from './ProjectItem';
 
 interface Props {
@@ -15,9 +16,16 @@ export default function Sidebar({ onToggleServer, serverPopupOpen, onCollapse }:
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const dragRef = useRef<number | null>(null);
 
+  const loadSavedCounts = useTerminalsStore((s) => s.loadSavedCounts);
+  const notifiedProjectIds = useTerminalsStore((s) => s.notifiedProjectIds);
+  const clearNotification = useTerminalsStore((s) => s.clearNotification);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    load().then(() => {
+      const ids = useProjectsStore.getState().projects.map((p) => p.id);
+      loadSavedCounts(ids);
+    });
+  }, [load, loadSavedCounts]);
 
   function handleDragStart(idx: number) {
     setDragIdx(idx);
@@ -93,7 +101,11 @@ export default function Sidebar({ onToggleServer, serverPopupOpen, onCollapse }:
             <ProjectItem
               project={project}
               active={project.id === activeProjectId}
-              onClick={() => setActiveProject(project.id)}
+              notified={notifiedProjectIds.has(project.id)}
+              onClick={() => {
+                setActiveProject(project.id);
+                clearNotification(project.id);
+              }}
               onRename={(name) => renameProject(project.id, name)}
               onRemove={() => removeProject(project.id)}
               onToggleServer={onToggleServer}

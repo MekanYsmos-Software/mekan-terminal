@@ -67,8 +67,8 @@ export function register() {
       return log.all.map((entry) => ({
         hash: entry.hash,
         message: entry.message,
-        author: (entry as Record<string, string>).author ?? '',
-        relativeDate: (entry as Record<string, string>).relativeDate ?? '',
+        author: (entry as unknown as Record<string, string>).author ?? '',
+        relativeDate: (entry as unknown as Record<string, string>).relativeDate ?? '',
       }));
     } catch {
       return [];
@@ -121,6 +121,31 @@ export function register() {
   ipcMain.handle('git:worktree-remove', async (_event, projectPath: string, wtPath: string) => {
     const git = simpleGit(projectPath);
     await git.raw(['worktree', 'remove', wtPath]);
+  });
+
+  ipcMain.handle('git:get-user', async (_event, projectPath: string): Promise<{ name: string; email: string }> => {
+    const git = simpleGit(projectPath);
+    try {
+      const name = (await git.raw(['config', '--local', 'user.name'])).trim();
+      const email = (await git.raw(['config', '--local', 'user.email'])).trim();
+      return { name, email };
+    } catch {
+      return { name: '', email: '' };
+    }
+  });
+
+  ipcMain.handle('git:set-user', async (_event, projectPath: string, name: string, email: string) => {
+    const git = simpleGit(projectPath);
+    if (name) {
+      await git.raw(['config', '--local', 'user.name', name]);
+    } else {
+      try { await git.raw(['config', '--local', '--unset', 'user.name']); } catch {}
+    }
+    if (email) {
+      await git.raw(['config', '--local', 'user.email', email]);
+    } else {
+      try { await git.raw(['config', '--local', '--unset', 'user.email']); } catch {}
+    }
   });
 }
 
