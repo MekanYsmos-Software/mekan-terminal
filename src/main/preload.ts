@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { IpcApi, TerminalStatus, ShellType } from '@shared/types';
+import type { IpcApi, TerminalStatus } from '@shared/types';
 
 const api: IpcApi = {
   project: {
@@ -8,10 +8,13 @@ const api: IpcApi = {
     remove: (id) => ipcRenderer.invoke('project:remove', id),
     rename: (id, name) => ipcRenderer.invoke('project:rename', id, name),
     reorder: (ids) => ipcRenderer.invoke('project:reorder', ids),
+    setServerCommand: (id, command) => ipcRenderer.invoke('project:set-server-command', id, command),
     selectFolder: () => ipcRenderer.invoke('project:select-folder'),
+    setLogo: (id: string) => ipcRenderer.invoke('project:set-logo', id),
+    clearLogo: (id: string) => ipcRenderer.invoke('project:clear-logo', id),
   },
   terminal: {
-    spawn: (projectId, cwd, shellType?) => ipcRenderer.invoke('pty:spawn', projectId, cwd, shellType),
+    spawn: (projectId: string, cwd: string, shellType?: string) => ipcRenderer.invoke('pty:spawn', projectId, cwd, shellType),
     getAvailableShells: () => ipcRenderer.invoke('pty:available-shells'),
     write: (terminalId, data) => ipcRenderer.send('pty:write', terminalId, data),
     resize: (terminalId, cols, rows) => ipcRenderer.send('pty:resize', terminalId, cols, rows),
@@ -36,6 +39,7 @@ const api: IpcApi = {
     worktrees: (projectPath) => ipcRenderer.invoke('git:worktrees', projectPath),
     commits: (projectPath, count) => ipcRenderer.invoke('git:commits', projectPath, count),
     isDirty: (projectPath) => ipcRenderer.invoke('git:is-dirty', projectPath),
+    pullRequests: (projectPath) => ipcRenderer.invoke('git:pull-requests', projectPath),
     worktreeAdd: (projectPath, path, branch, createBranch) =>
       ipcRenderer.invoke('git:worktree-add', projectPath, path, branch, createBranch),
     worktreeRemove: (projectPath, worktreePath) =>
@@ -44,6 +48,9 @@ const api: IpcApi = {
   layout: {
     load: (projectId) => ipcRenderer.invoke('layout:load', projectId),
     save: (layout) => ipcRenderer.invoke('layout:save', layout),
+  },
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   },
 };
 

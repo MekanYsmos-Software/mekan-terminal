@@ -1,20 +1,48 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTerminal } from './useTerminal';
 import { useTerminalsStore } from '../../stores/terminals';
-import type { TerminalStatus, SplitDirection } from '@shared/types';
+import { useGitStore } from '../../stores/git';
+import { useProjectsStore } from '../../stores/projects';
+import type { TerminalStatus } from '@shared/types';
 
 interface Props {
   terminalId: string;
   projectId: string;
   cwd: string;
+  hideHeader?: boolean;
 }
 
-export default function TerminalPane({ terminalId, projectId, cwd }: Props) {
+export default function TerminalPane({ terminalId, projectId, cwd, hideHeader }: Props) {
   const [status, setStatus] = useState<TerminalStatus>('running');
   const [exitCode, setExitCode] = useState<number | null>(null);
   const [hovered, setHovered] = useState(false);
-  const { splitPane, closePane, getTerminalCount } = useTerminalsStore();
-  const terminal = useTerminalsStore((s) => (s.terminals[projectId] || []).find((t) => t.id === terminalId));
+  const [editing, setEditing] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const removeTerminal = useTerminalsStore((s) => s.removeTerminal);
+  const restartTerminal = useTerminalsStore((s) => s.restartTerminal);
+  const renameTerminal = useTerminalsStore((s) => s.renameTerminal);
+  const allTerminals = useTerminalsStore((s) => s.terminals);
+  const terminal = (allTerminals[projectId] ?? []).find((t) => t.id === terminalId);
+  const [editName, setEditName] = useState(terminal?.name ?? '');
+  const [busy, setBusy] = useState(false);
+
+  const worktrees = useGitStore((s) => s.worktrees);
+  const branches = useGitStore((s) => s.branches);
+  const isDirty = useGitStore((s) => s.isDirty);
+  const activeProjectPath = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.path ?? null);
+
+  const normalizedCwd = cwd.replace(/\\/g, '/').toLowerCase();
+  const matchedWorktree = worktrees.find((wt) => normalizedCwd.startsWith(wt.path.replace(/\\/g, '/').toLowerCase()));
+  const isNonMainWorktree = matchedWorktree && !matchedWorktree.isMain;
+  const showWorktreeInfo = worktrees.length > 1 && isNonMainWorktree;
+  const currentBranch = branches.find((b) => b.current);
+  const terminalBranch = matchedWorktree
+    ? matchedWorktree.branch
+    : currentBranch?.name ?? null;
 
   const onStatusChange = useCallback(
     (newStatus: 'running' | 'exited', code: number | null) => {
@@ -25,59 +53,155 @@ export default function TerminalPane({ terminalId, projectId, cwd }: Props) {
     [projectId, terminalId]
   );
 
-  const { containerRef } = useTerminal({ terminalId, onStatusChange });
+  const onBusyChange = useCallback((b: boolean) => setBusy(b), []);
 
-  const canSplit = getTerminalCount(projectId) < 6;
-  const shellLabel = terminal?.shell === 'pwsh' ? 'PS' : terminal?.shell === 'wsl' ? 'WSL' : 'CMD';
+  const { containerRef, searchNext, searchPrev, searchClear } = useTerminal({ terminalId, onStatusChange, onBusyChange });
 
-  function handleSplit(direction: SplitDirection) {
-    splitPane(projectId, terminalId, direction, cwd, terminal?.shell);
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        setSearching(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+    }
+    const el = paneRef.current;
+    if (el) el.addEventListener('keydown', handleKeyDown);
+    return () => { if (el) el.removeEventListener('keydown', handleKeyDown); };
+  }, []);
+
+  function closeSearch() {
+    setSearching(false);
+    setSearchQuery('');
+    searchClear();
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) searchPrev(searchQuery);
+      else searchNext(searchQuery);
+    }
+    if (e.key === 'Escape') closeSearch();
   }
 
   function handleClose() {
-    closePane(projectId, terminalId);
+    removeTerminal(projectId, terminalId);
   }
 
   async function handleRestart() {
-    const newId = await useTerminalsStore.getState().restartTerminal(terminalId);
-    if (newId) {
-      setStatus('running');
-      setExitCode(null);
-    }
+    await restartTerminal(projectId, terminalId);
+    setStatus('running');
+    setExitCode(null);
   }
 
-  const statusColor = status === 'running' ? 'bg-status-running' : status === 'exited' ? 'bg-status-exited' : 'bg-status-idle';
+  function startRename() {
+    setEditName(terminal?.name ?? '');
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function commitRename() {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== terminal?.name) {
+      renameTerminal(projectId, terminalId, trimmed);
+    }
+    setEditing(false);
+  }
 
   return (
-    <div className="flex flex-col h-full w-full" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div className="flex items-center h-7 px-2 bg-surface-2 border-b border-zinc-800 gap-2 flex-shrink-0">
-        <div className={`w-2 h-2 rounded-full ${statusColor}`} title={status === 'exited' ? `Exit code: ${exitCode}` : status} />
-        <span className="text-xxs text-accent font-mono">{shellLabel}</span>
-        <span className="text-xxs text-zinc-600 flex-1 truncate">{cwd.split('\\').pop()}</span>
-        {hovered && (
-          <div className="flex items-center gap-1">
+    <div ref={paneRef} className="flex flex-col h-full w-full" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      {/* Terminal header */}
+      {!hideHeader && <div className="flex items-center h-8 px-3 bg-surface-1 border-b border-border gap-2 flex-shrink-0">
+        {/* Status indicator */}
+        {busy ? (
+          <div className="w-3 h-3 rounded-full border-[1.5px] border-accent/40 border-t-accent animate-spin flex-shrink-0" />
+        ) : (
+          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors ${
+            status === 'running' ? 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]' : 'bg-zinc-600'
+          }`} />
+        )}
+
+        {editing ? (
+          <input
+            ref={inputRef}
+            className="text-xxs bg-surface-3 text-white px-1.5 py-0.5 rounded-md outline-none border border-accent/50 focus:border-accent flex-1 min-w-0 transition-all"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+          />
+        ) : (
+          <span
+            className="text-xxs text-zinc-500 font-medium truncate cursor-pointer hover:text-zinc-300 transition-colors"
+            onDoubleClick={startRename}
+            title="Double-click to rename"
+          >
+            {terminal?.name ?? 'Terminal'}
+          </span>
+        )}
+        {terminalBranch && (
+          <span className="flex items-center gap-1 flex-shrink-0">
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" className="text-zinc-700">
+              <circle cx="8" cy="3" r="2" stroke="currentColor" strokeWidth="1.5"/>
+              <circle cx="8" cy="13" r="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M8 5v6" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+            <span className="text-xxs text-accent/70 font-medium">{terminalBranch}</span>
+            {!isNonMainWorktree && isDirty && <span className="w-1 h-1 rounded-full bg-amber-500" />}
+          </span>
+        )}
+        {showWorktreeInfo && (
+          <span className="text-xxs text-zinc-700 bg-surface-3 px-1.5 py-0.5 rounded font-mono flex-shrink-0" title={cwd}>WT</span>
+        )}
+        <div className="flex-1 min-w-0" />
+        {hovered && !editing && (
+          <div className="flex items-center gap-0.5 animate-fade-in">
             {status === 'exited' && (
-              <button onClick={handleRestart} className="text-xxs text-zinc-500 hover:text-white px-1" title="Restart">
-                ↻
+              <button onClick={handleRestart} className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-white hover:bg-surface-3 transition-all" title="Restart">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0110.89-3.48M14 8a6 6 0 01-10.89 3.48" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M14 2v4h-4M2 14v-4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             )}
-            {canSplit && (
-              <>
-                <button onClick={() => handleSplit('horizontal')} className="text-xxs text-zinc-500 hover:text-white px-1" title="Split horizontal">
-                  ⬒
-                </button>
-                <button onClick={() => handleSplit('vertical')} className="text-xxs text-zinc-500 hover:text-white px-1" title="Split vertical">
-                  ⬓
-                </button>
-              </>
-            )}
-            <button onClick={handleClose} className="text-xxs text-zinc-500 hover:text-red-400 px-1" title="Close">
-              ✕
+            <button onClick={handleClose} className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Close">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
             </button>
           </div>
         )}
-      </div>
-      <div ref={containerRef} className="flex-1 min-h-0" />
+      </div>}
+
+      {/* Search bar */}
+      {searching && (
+        <div className="flex items-center h-8 px-3 bg-surface-2 border-b border-border gap-2 flex-shrink-0 animate-fade-in">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="text-zinc-600 flex-shrink-0">
+            <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <input
+            ref={searchInputRef}
+            className="text-xxs bg-surface-3 text-white px-2 py-1 rounded-md outline-none border border-border focus:border-accent/50 flex-1 min-w-0 transition-all"
+            placeholder="Search in terminal..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              if (e.target.value) searchNext(e.target.value);
+            }}
+            onKeyDown={handleSearchKeyDown}
+          />
+          <button onClick={() => searchPrev(searchQuery)} className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-white hover:bg-surface-3 transition-all" title="Previous (Shift+Enter)">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 5L4 2L7 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <button onClick={() => searchNext(searchQuery)} className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-white hover:bg-surface-3 transition-all" title="Next (Enter)">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 3L4 6L7 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <button onClick={closeSearch} className="w-5 h-5 flex items-center justify-center rounded text-zinc-600 hover:text-zinc-300 hover:bg-surface-3 transition-all" title="Close (Esc)">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+      )}
+
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
     </div>
   );
 }

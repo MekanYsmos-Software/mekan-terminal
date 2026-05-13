@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useProjectsStore } from '../../stores/projects';
 import { useTerminalsStore } from '../../stores/terminals';
 import { useGitStore } from '../../stores/git';
-import SplitNodeView from './SplitNode';
-import type { ShellType } from '@shared/types';
+import TerminalPane from '../TerminalPane/TerminalPane';
+import type { ShellType, TerminalInstance } from '@shared/types';
 
 const SHELL_LABELS: Record<ShellType, string> = {
   pwsh: 'PowerShell',
@@ -11,16 +11,29 @@ const SHELL_LABELS: Record<ShellType, string> = {
   wsl: 'WSL',
 };
 
+const EMPTY_TERMINALS: TerminalInstance[] = [];
+
+function getGridStyle(count: number): React.CSSProperties {
+  if (count <= 1) return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
+  if (count === 2) return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr' };
+  if (count === 3) return { gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: '1fr' };
+  if (count === 4) return { gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' };
+  if (count === 5) return { gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: '1fr 1fr' };
+  return { gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: '1fr 1fr' };
+}
+
 export default function TerminalGrid() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
-  const activeProject = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId));
-  const layout = useTerminalsStore((s) => (activeProjectId ? s.layouts[activeProjectId] : null));
+  const activeProjectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? null);
+  const activeProjectPath = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.path ?? null);
+  const allTerminals = useTerminalsStore((s) => s.terminals);
   const spawnTerminal = useTerminalsStore((s) => s.spawnTerminal);
-  const addTerminalToGrid = useTerminalsStore((s) => s.addTerminalToGrid);
+  const restoreTerminals = useTerminalsStore((s) => s.restoreTerminals);
   const availableShells = useTerminalsStore((s) => s.availableShells);
   const loadShells = useTerminalsStore((s) => s.loadShells);
-  const getTerminalCount = useTerminalsStore((s) => s.getTerminalCount);
   const worktrees = useGitStore((s) => s.worktrees);
+  const allProjectTerminals = activeProjectId ? (allTerminals[activeProjectId] ?? EMPTY_TERMINALS) : EMPTY_TERMINALS;
+  const terminals = allProjectTerminals.filter((t) => !t.isServer);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
 
@@ -29,70 +42,80 @@ export default function TerminalGrid() {
   }, [loadShells]);
 
   useEffect(() => {
-    if (activeProjectId && activeProject && !layout) {
-      spawnTerminal(activeProjectId, activeProject.path);
+    if (activeProjectId && activeProjectPath && terminals.length === 0) {
+      restoreTerminals(activeProjectId).then(() => {
+        const current = useTerminalsStore.getState().terminals[activeProjectId] || [];
+        if (current.filter((t) => !t.isServer).length === 0) {
+          spawnTerminal(activeProjectId, activeProjectPath);
+        }
+      });
     }
-  }, [activeProjectId, activeProject, layout, spawnTerminal]);
+  }, [activeProjectId, activeProjectPath, terminals.length, spawnTerminal, restoreTerminals]);
 
-  if (!activeProjectId || !activeProject) {
+  if (!activeProjectId || !activeProjectPath) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-        Select or add a project to get started.
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-zinc-700">
+              <rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="13" y="3" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="13" y="13" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+          </div>
+          <div className="text-sm text-zinc-600">Select or add a project to get started</div>
+        </div>
       </div>
     );
   }
 
-  if (!layout) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-        Starting terminal...
-      </div>
-    );
-  }
-
-  const count = getTerminalCount(activeProjectId);
-  const canAdd = count < 6;
+  const canAdd = terminals.length < 6;
 
   function handleNewTerminal(shell: ShellType, cwd?: string) {
     setShowNewMenu(false);
-    addTerminalToGrid(activeProjectId!, cwd || activeProject!.path, shell);
+    spawnTerminal(activeProjectId!, cwd || activeProjectPath!, shell);
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0">
-      <div className="flex items-center h-8 px-2 bg-surface-1 border-b border-zinc-800 gap-1 flex-shrink-0">
-        <span className="text-xxs text-zinc-500 mr-2">{count}/6</span>
+      <div className="flex items-center h-9 px-3 bg-surface-1 border-b border-border gap-3 flex-shrink-0">
+        {activeProjectName && (
+          <span className="text-xxs text-zinc-500 font-medium">{activeProjectName}</span>
+        )}
+        <span className="text-xxs text-zinc-600 font-mono">{terminals.length}<span className="text-zinc-700">/6</span></span>
         {canAdd && (
           <div className="relative">
             <button
               onClick={() => setShowNewMenu(!showNewMenu)}
-              className="text-xs text-zinc-400 hover:text-white px-2 py-0.5 rounded bg-surface-3 hover:bg-accent transition-colors"
+              className="flex items-center gap-1.5 text-xxs text-zinc-500 hover:text-white px-2.5 py-1 rounded-md bg-surface-3 hover:bg-accent hover:shadow-glow-sm transition-all duration-200 font-medium"
             >
-              + Terminal
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              Terminal
             </button>
             {showNewMenu && (
-              <div className="absolute top-full left-0 mt-1 z-50 bg-surface-2 border border-zinc-700 rounded shadow-lg py-1 min-w-[180px]">
+              <div className="absolute top-full left-0 mt-1.5 z-50 bg-surface-2 border border-border-hover rounded-lg shadow-panel py-1.5 min-w-[200px] animate-fade-in">
                 {availableShells.map((shell) => (
                   <button
                     key={shell}
-                    className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-3"
+                    className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-surface-3 hover:text-white transition-colors"
                     onClick={() => handleNewTerminal(shell)}
                   >
-                    {SHELL_LABELS[shell]} — {activeProject!.path.split('\\').pop()}
+                    {SHELL_LABELS[shell]}
                   </button>
                 ))}
                 {worktrees.length > 1 && (
                   <>
-                    <div className="border-t border-zinc-700 my-1" />
-                    <div className="px-3 py-1 text-xxs text-zinc-600">Worktrees</div>
+                    <div className="border-t border-border my-1.5 mx-2" />
+                    <div className="px-3 py-1 text-xxs text-zinc-600 font-medium tracking-wider uppercase">Worktrees</div>
                     {worktrees.map((wt) => (
-                      <div key={wt.path} className="px-3 py-1">
-                        <div className="text-xxs text-zinc-400 mb-0.5">{wt.branch || 'detached'}</div>
+                      <div key={wt.path} className="px-3 py-1.5">
+                        <div className="text-xxs text-zinc-400 mb-1 font-medium">{wt.branch || 'detached'}</div>
                         <div className="flex gap-1">
                           {availableShells.map((shell) => (
                             <button
                               key={shell}
-                              className="text-xxs text-zinc-500 hover:text-white px-1.5 py-0.5 rounded bg-surface-3 hover:bg-accent transition-colors"
+                              className="text-xxs text-zinc-500 hover:text-white px-2 py-0.5 rounded-md bg-surface-3 hover:bg-accent transition-all duration-200"
                               onClick={() => handleNewTerminal(shell, wt.path)}
                             >
                               {SHELL_LABELS[shell]}
@@ -109,8 +132,19 @@ export default function TerminalGrid() {
         )}
         <div className="flex-1" />
       </div>
-      <div className="flex-1 min-h-0 min-w-0">
-        <SplitNodeView node={layout} projectId={activeProjectId} cwd={activeProject.path} />
+      <div
+        className="flex-1 min-h-0 min-w-0 grid gap-[1px] bg-border"
+        style={getGridStyle(terminals.length)}
+      >
+        {terminals.map((t) => (
+          <div key={t.id} className="bg-surface-0 min-h-0 min-w-0">
+            <TerminalPane
+              terminalId={t.id}
+              projectId={activeProjectId}
+              cwd={t.cwd}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );

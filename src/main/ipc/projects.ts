@@ -50,6 +50,15 @@ export function register() {
     configStore.writeProjects(ordered);
   });
 
+  ipcMain.handle('project:set-server-command', (_event, id: string, command: string) => {
+    const projects = configStore.readProjects() as Project[];
+    const project = projects.find((p) => p.id === id);
+    if (project) {
+      (project as any).serverCommand = command;
+      configStore.writeProjects(projects);
+    }
+  });
+
   ipcMain.handle('project:select-folder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return null;
@@ -67,5 +76,33 @@ export function register() {
 
   ipcMain.handle('layout:save', (_event, layout: ProjectLayout) => {
     configStore.writeLayout(layout.projectId, layout);
+  });
+
+  ipcMain.handle('project:set-logo', async (event, id: string): Promise<string | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return null;
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      title: 'Select Project Logo',
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'svg', 'ico', 'webp'] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const filePath = result.filePaths[0];
+    const projects = configStore.readProjects() as Project[];
+    const project = projects.find((p) => p.id === id);
+    if (project) {
+      (project as any).logo = filePath;
+      configStore.writeProjects(projects);
+    }
+    return filePath;
+  });
+
+  ipcMain.handle('project:clear-logo', (_event, id: string) => {
+    const projects = configStore.readProjects() as Project[];
+    const project = projects.find((p) => p.id === id);
+    if (project) {
+      delete (project as any).logo;
+      configStore.writeProjects(projects);
+    }
   });
 }

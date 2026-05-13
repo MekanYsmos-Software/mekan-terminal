@@ -40,3 +40,4 @@ export function writeLayout(projectId: string, layout: unknown) {
   const file = path.join(LAYOUTS_DIR, `${projectId}.json`);
   fs.writeFileSync(file, JSON.stringify(layout, null, 2), 'utf-8');
 }
+

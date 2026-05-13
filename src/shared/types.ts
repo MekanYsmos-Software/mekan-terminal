@@ -3,6 +3,8 @@ export interface Project {
   name: string;
   path: string;
   order: number;
+  serverCommand?: string;
+  logo?: string;
 }
 
 export type TerminalStatus = 'idle' | 'running' | 'exited';
@@ -15,27 +17,20 @@ export interface TerminalInstance {
   exitCode: number | null;
   cwd: string;
   shell: ShellType;
+  isServer: boolean;
+  name: string;
 }
 
-export type SplitDirection = 'horizontal' | 'vertical';
-
-export interface SplitNode {
-  type: 'split';
-  direction: SplitDirection;
-  sizes: number[];
-  children: LayoutNode[];
+export interface TerminalConfig {
+  shell: ShellType;
+  cwd: string;
+  name: string;
+  isServer: boolean;
 }
-
-export interface LeafNode {
-  type: 'leaf';
-  terminalId: string;
-}
-
-export type LayoutNode = SplitNode | LeafNode;
 
 export interface ProjectLayout {
   projectId: string;
-  root: LayoutNode | null;
+  terminals: TerminalConfig[];
 }
 
 export interface GitBranch {
@@ -60,6 +55,15 @@ export interface GitCommit {
   relativeDate: string;
 }
 
+export interface GitPullRequest {
+  number: number;
+  title: string;
+  author: string;
+  url: string;
+  state: string;
+  draft: boolean;
+}
+
 export interface IpcApi {
   project: {
     list(): Promise<Project[]>;
@@ -67,7 +71,10 @@ export interface IpcApi {
     remove(id: string): Promise<void>;
     rename(id: string, name: string): Promise<void>;
     reorder(ids: string[]): Promise<void>;
+    setServerCommand(id: string, command: string): Promise<void>;
     selectFolder(): Promise<string | null>;
+    setLogo(id: string): Promise<string | null>;
+    clearLogo(id: string): Promise<void>;
   };
   terminal: {
     spawn(projectId: string, cwd: string, shellType?: ShellType): Promise<string>;
@@ -75,7 +82,7 @@ export interface IpcApi {
     write(terminalId: string, data: string): void;
     resize(terminalId: string, cols: number, rows: number): void;
     kill(terminalId: string): void;
-    restart(terminalId: string): Promise<void>;
+    restart(terminalId: string): Promise<string | null>;
     onData(terminalId: string, callback: (data: string) => void): () => void;
     onStatus(terminalId: string, callback: (status: TerminalStatus, exitCode: number | null) => void): () => void;
   };
@@ -84,11 +91,15 @@ export interface IpcApi {
     worktrees(projectPath: string): Promise<GitWorktree[]>;
     commits(projectPath: string, count: number): Promise<GitCommit[]>;
     isDirty(projectPath: string): Promise<boolean>;
+    pullRequests(projectPath: string): Promise<GitPullRequest[]>;
     worktreeAdd(projectPath: string, path: string, branch: string, createBranch: boolean): Promise<void>;
     worktreeRemove(projectPath: string, worktreePath: string): Promise<void>;
   };
   layout: {
     load(projectId: string): Promise<ProjectLayout | null>;
     save(layout: ProjectLayout): Promise<void>;
+  };
+  shell: {
+    openExternal(url: string): Promise<void>;
   };
 }

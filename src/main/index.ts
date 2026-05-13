@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
+import { autoUpdater } from 'electron-updater';
 import * as configStore from './config-store';
 import * as projectsIpc from './ipc/projects';
 import * as terminalIpc from './ipc/terminal';
@@ -47,12 +48,38 @@ function createWindow() {
   });
 }
 
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-downloaded', (info) => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update disponível',
+      message: `Versão ${info.version} foi baixada. O app será atualizado ao reiniciar.`,
+      buttons: ['Reiniciar agora', 'Depois'],
+    }).then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
 app.whenReady().then(() => {
   configStore.init();
   projectsIpc.register();
   terminalIpc.register();
   gitIpc.register();
+
+  ipcMain.handle('shell:open-external', (_event, url: string) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
+  });
+
   createWindow();
+  setupAutoUpdater();
 });
 
 app.on('before-quit', () => {

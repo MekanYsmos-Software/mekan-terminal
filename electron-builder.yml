@@ -15,3 +15,7 @@ nsis:
   oneClick: true
   perMachine: false
   allowToChangeInstallationDirectory: false
+publish:
+  provider: github
+  owner: MekanYsmos-Software
+  repo: mekan-terminal

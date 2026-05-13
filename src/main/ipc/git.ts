@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import simpleGit from 'simple-git';
-import type { GitBranch, GitWorktree, GitCommit } from '@shared/types';
+
+const execFileAsync = promisify(execFile);
+import type { GitBranch, GitWorktree, GitCommit, GitPullRequest } from '@shared/types';
 
 export function register() {
   ipcMain.handle('git:branches', async (_event, projectPath: string): Promise<GitBranch[]> => {
@@ -78,6 +82,27 @@ export function register() {
       return !status.isClean();
     } catch {
       return false;
+    }
+  });
+
+  ipcMain.handle('git:pull-requests', async (_event, projectPath: string): Promise<GitPullRequest[]> => {
+    try {
+      const { stdout } = await execFileAsync(
+        'gh',
+        ['pr', 'list', '--json', 'number,title,author,url,state,isDraft', '--limit', '20'],
+        { cwd: projectPath, encoding: 'utf-8', timeout: 15000 }
+      );
+      const prs = JSON.parse(stdout);
+      return prs.map((pr: any) => ({
+        number: pr.number,
+        title: pr.title,
+        author: pr.author?.login ?? '',
+        url: pr.url,
+        state: pr.state,
+        draft: pr.isDraft ?? false,
+      }));
+    } catch {
+      return [];
     }
   });
 

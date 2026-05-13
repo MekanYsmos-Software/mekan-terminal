@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { execSync } from 'child_process';
 import type { BrowserWindow } from 'electron';
 import type { TerminalStatus, ShellType } from '@shared/types';
@@ -19,6 +20,8 @@ const instances = new Map<string, PtyEntry>();
 let counter = 0;
 
 const shellPaths: Record<string, string> = {};
+let pwshProfilePath: string | null = null;
+let userPath: string | null = null;
 
 function findPwsh(): string | null {
   if (shellPaths['pwsh']) return shellPaths['pwsh'];
@@ -29,6 +32,28 @@ function findPwsh(): string | null {
   for (const p of candidates) {
     if (fs.existsSync(p)) {
       shellPaths['pwsh'] = p;
+      try {
+        const info = execSync(`"${p}" -NoProfile -Command "$PROFILE + '|' + $env:PATH"`, { encoding: 'utf-8', timeout: 5000 }).trim();
+        const sepIdx = info.indexOf('|');
+        if (sepIdx > 0) {
+          const profile = info.substring(0, sepIdx);
+          const fullPath = info.substring(sepIdx + 1);
+          if (profile && fs.existsSync(profile)) {
+            pwshProfilePath = profile;
+          }
+          if (fullPath) {
+            userPath = fullPath;
+          }
+        }
+      } catch {}
+      try {
+        const wp5Profile = execSync(`"${p}" -NoProfile -Command "$PROFILE.CurrentUserCurrentHost -replace 'PowerShell\\\\', 'WindowsPowerShell\\\\'"`, { encoding: 'utf-8', timeout: 5000 }).trim();
+        if (wp5Profile && fs.existsSync(wp5Profile) && wp5Profile !== pwshProfilePath) {
+          pwshProfilePath = pwshProfilePath
+            ? `${pwshProfilePath}|${wp5Profile}`
+            : wp5Profile;
+        }
+      } catch {}
       return p;
     }
   }
@@ -59,7 +84,15 @@ function resolveShell(shellType: ShellType): { exe: string; args: string[] } {
   switch (shellType) {
     case 'pwsh': {
       const p = findPwsh();
-      return { exe: p || 'cmd.exe', args: [] };
+      if (!p) return { exe: 'cmd.exe', args: [] };
+      const args = ['-NoLogo'];
+      if (pwshProfilePath) {
+        const sources = pwshProfilePath.split('|')
+          .map((prof) => `. '${prof.replace(/'/g, "''")}'`)
+          .join('; ');
+        args.push('-NoExit', '-Command', sources);
+      }
+      return { exe: p, args };
     }
     case 'wsl':
       return { exe: 'wsl.exe', args: [] };
@@ -74,12 +107,18 @@ export function spawn(projectId: string, cwd: string, win: BrowserWindow, shellT
   const type = shellType || (findPwsh() ? 'pwsh' : 'cmd');
   const { exe, args } = resolveShell(type);
 
+  const env = { ...process.env } as Record<string, string>;
+  if (!env.USERPROFILE && env.HOME) env.USERPROFILE = env.HOME;
+  if (!env.HOME && env.USERPROFILE) env.HOME = env.USERPROFILE;
+  if (userPath) env.PATH = userPath;
+
   const proc = pty.spawn(exe, args, {
     name: 'xterm-256color',
     cols: 80,
     rows: 24,
     cwd,
-    env: process.env as Record<string, string>,
+    env,
+    useConpty: true,
   });
 
   const entry: PtyEntry = {

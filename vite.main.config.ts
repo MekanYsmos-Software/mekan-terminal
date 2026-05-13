@@ -17,6 +17,7 @@ export default defineConfig({
       },
       external: [
         'electron',
+        'electron-updater',
         'node-pty',
         'chokidar',
         'simple-git',

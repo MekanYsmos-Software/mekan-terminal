@@ -11,6 +11,9 @@ interface ProjectsState {
   removeProject(id: string): Promise<void>;
   renameProject(id: string, name: string): Promise<void>;
   reorderProjects(ids: string[]): Promise<void>;
+  setServerCommand(id: string, command: string): Promise<void>;
+  setLogo(id: string): Promise<void>;
+  clearLogo(id: string): Promise<void>;
   setActiveProject(id: string): void;
 }
 
@@ -67,6 +70,29 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
           return p ? { ...p, order: i } : null;
         })
         .filter(Boolean) as Project[],
+    }));
+  },
+
+  async setServerCommand(id, command) {
+    await window.mekan.project.setServerCommand(id, command);
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, serverCommand: command } : p)),
+    }));
+  },
+
+  async setLogo(id) {
+    const filePath = await window.mekan.project.setLogo(id);
+    if (filePath) {
+      set((s) => ({
+        projects: s.projects.map((p) => (p.id === id ? { ...p, logo: filePath } : p)),
+      }));
+    }
+  },
+
+  async clearLogo(id) {
+    await window.mekan.project.clearLogo(id);
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? { ...p, logo: undefined } : p)),
     }));
   },
 
