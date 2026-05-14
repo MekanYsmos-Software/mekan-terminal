@@ -24,11 +24,13 @@
 
 ## Why Mekan?
 
-Switching between projects shouldn't mean losing your terminal context. Mekan keeps every project's terminals, layout, and git state organized in one place — no more juggling windows.
+Switching between projects shouldn't mean losing your terminal context. Mekan keeps every project's terminals, layout, git state, tasks, and files organized in one place — no more juggling windows.
 
 - **One app, all your projects.** Switch between repos instantly. Each project remembers its terminals, names, and working directories.
 - **Git at a glance.** Branches, commits, worktrees, and open PRs — always visible in the sidebar.
 - **Worktree-native.** Create, manage, and open terminals in git worktrees without leaving the app.
+- **Built-in file editor.** Browse and edit project files with syntax highlighting — no need to switch to another editor for quick changes.
+- **Task tracking.** Keep a per-project task list with statuses, due dates, and priority alerts right inside the terminal.
 - **Auto-updates.** Install once, stay current. New releases are downloaded and applied automatically.
 
 ---
@@ -59,6 +61,14 @@ A collapsible right sidebar with four live sections:
 - **Commits** — last 10 commits with hash, author, date, and message (click to copy hash)
 - **Pull Requests** — open GitHub PRs via `gh` CLI, click to open in browser
 
+### File Editor
+
+Browse your project's file tree and edit files without leaving Mekan. Powered by Monaco Editor with syntax highlighting for 15+ languages including TypeScript, JavaScript, Python, Rust, Go, and more. Open multiple files in tabs, see unsaved changes at a glance, and save with `Ctrl+S`.
+
+### Tasks
+
+Track work per project with a built-in task manager. Create tasks with due dates, cycle through statuses (To Do → Ongoing → Done), and filter by state. Overdue and due-soon tasks are color-coded so nothing slips through.
+
 ### Server Terminals
 
 Configure a server command per project (e.g. `npm run dev`). Start, stop, and monitor it from a dedicated popup — separate from your regular terminals.
@@ -73,6 +83,7 @@ Mekan checks for updates on launch. When a new version is ready, it downloads in
 
 | Shortcut | Action |
 |----------|--------|
+| `Ctrl+S` | Save file in editor |
 | `Ctrl+C` | Copy selected text |
 | `Ctrl+V` | Paste from clipboard |
 | `Ctrl+Enter` | Insert newline |
@@ -118,25 +129,12 @@ npm run package
 | Framework | Electron 33 |
 | Frontend | React 19, TypeScript, Tailwind CSS |
 | Terminal | xterm.js 5 + Fit, Search, WebLinks addons |
+| Editor | Monaco Editor |
 | State | Zustand |
 | Build | Vite, electron-builder |
 | PTY | node-pty |
 | Git | simple-git, GitHub CLI |
 | Updates | electron-updater |
-
----
-
-## Releasing
-
-Push a version tag to trigger a new release:
-
-```bash
-# Update version in package.json, then:
-git tag v0.2.0
-git push origin main --tags
-```
-
-GitHub Actions builds the installer and publishes it as a release. Existing installations pick up the update automatically.
 
 ---
 
