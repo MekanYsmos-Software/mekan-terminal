@@ -16,9 +16,8 @@
 
 <br/>
 
-<!-- Replace with an actual screenshot of the app -->
 <p align="center">
-  <img src="https://via.placeholder.com/900x520/09090b/6366f1?text=Screenshot+Here" alt="Mekan Terminal Screenshot" width="900" />
+  <img src="resources/mekan-terminal-readme.png" alt="Mekan Terminal Screenshot" width="900" />
 </p>
 
 ---
@@ -40,11 +39,6 @@ Switching between projects shouldn't mean losing your terminal context. Mekan ke
 
 Manage all your projects from a collapsible left panel. Add folders, reorder with drag-and-drop, set custom logos, and configure per-project server commands.
 
-<!-- Replace with a screenshot of the sidebar -->
-<p align="center">
-  <img src="https://via.placeholder.com/320x500/09090b/6366f1?text=Sidebar" alt="Project Sidebar" width="320" />
-</p>
-
 ### Terminal Grid
 
 Up to **6 terminals per project**, auto-arranged in a responsive grid. Each terminal tracks its own shell, name, and working directory — all persisted across sessions.
@@ -56,11 +50,6 @@ Supported shells:
 | **CMD** | Windows command prompt |
 | **WSL** | Windows Subsystem for Linux |
 
-<!-- Replace with a screenshot of the terminal grid -->
-<p align="center">
-  <img src="https://via.placeholder.com/700x400/09090b/6366f1?text=Terminal+Grid" alt="Terminal Grid" width="700" />
-</p>
-
 ### Git Panel
 
 A collapsible right sidebar with four live sections:
@@ -69,11 +58,6 @@ A collapsible right sidebar with four live sections:
 - **Worktrees** — create, list, and remove worktrees; open terminals directly inside them
 - **Commits** — last 10 commits with hash, author, date, and message (click to copy hash)
 - **Pull Requests** — open GitHub PRs via `gh` CLI, click to open in browser
-
-<!-- Replace with a screenshot of the git panel -->
-<p align="center">
-  <img src="https://via.placeholder.com/320x500/09090b/6366f1?text=Git+Panel" alt="Git Panel" width="320" />
-</p>
 
 ### Server Terminals
 
