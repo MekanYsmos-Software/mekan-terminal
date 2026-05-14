@@ -40,6 +40,7 @@ export default function ProjectItem({ project, active, notified, onClick, onRena
   const hasLiveTerminals = project.id in allTerminals;
   const terminalCount = hasLiveTerminals ? nonServerTerminals.length : (savedCounts[project.id] || 0);
   const busyCount = nonServerTerminals.filter((t) => t.busy).length;
+  const waitingCount = nonServerTerminals.filter((t) => t.waiting && !t.busy).length;
   const serverTerminals = projectTerminals.filter((t) => t.isServer);
   const spawnTerminal = useTerminalsStore((s) => s.spawnTerminal);
   const worktrees = useGitStore((s) => s.worktrees);
@@ -236,9 +237,15 @@ export default function ProjectItem({ project, active, notified, onClick, onRena
             <div className="w-2.5 h-2.5 rounded-full border-[1.5px] border-amber-500/40 border-t-amber-500 animate-spin" />
           </span>
         )}
-        {terminalCount - busyCount > 0 && (
-          <span className="flex items-center gap-1" title={`${terminalCount - busyCount} idle`}>
-            <span className="text-xxs font-mono text-green-500">{terminalCount - busyCount}</span>
+        {waitingCount > 0 && (
+          <span className="flex items-center gap-1" title={`${waitingCount} waiting for input`}>
+            <span className="text-xxs font-mono text-amber-400">{waitingCount}</span>
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_4px_rgba(251,191,36,0.4)]" />
+          </span>
+        )}
+        {terminalCount - busyCount - waitingCount > 0 && (
+          <span className="flex items-center gap-1" title={`${terminalCount - busyCount - waitingCount} idle`}>
+            <span className="text-xxs font-mono text-green-500">{terminalCount - busyCount - waitingCount}</span>
             <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]" />
           </span>
         )}

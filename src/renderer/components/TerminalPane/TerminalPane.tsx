@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTerminal } from './useTerminal';
 import { useTerminalsStore } from '../../stores/terminals';
 import { useGitStore } from '../../stores/git';
-import { useProjectsStore } from '../../stores/projects';
-import type { TerminalStatus } from '@shared/types';
 
 interface Props {
   terminalId: string;
@@ -15,8 +13,6 @@ interface Props {
 }
 
 export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, index, totalCount }: Props) {
-  const [status, setStatus] = useState<TerminalStatus>('running');
-  const [exitCode, setExitCode] = useState<number | null>(null);
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -28,16 +24,15 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
   const restartTerminal = useTerminalsStore((s) => s.restartTerminal);
   const renameTerminal = useTerminalsStore((s) => s.renameTerminal);
   const reorderTerminals = useTerminalsStore((s) => s.reorderTerminals);
-  const allTerminals = useTerminalsStore((s) => s.terminals);
-  const terminal = (allTerminals[projectId] ?? []).find((t) => t.id === terminalId);
+  const terminal = useTerminalsStore((s) => (s.terminals[projectId] ?? []).find((t) => t.id === terminalId));
   const [editName, setEditName] = useState(terminal?.name ?? '');
-  const setBusy = useTerminalsStore((s) => s.setBusy);
+  const status = terminal?.status ?? 'running';
   const busy = terminal?.busy ?? false;
+  const waiting = terminal?.waiting ?? false;
 
   const worktrees = useGitStore((s) => s.worktrees);
   const branches = useGitStore((s) => s.branches);
   const isDirty = useGitStore((s) => s.isDirty);
-  const activeProjectPath = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.path ?? null);
 
   const normalizedCwd = cwd.replace(/\\/g, '/').toLowerCase();
   const matchedWorktree = worktrees.find((wt) => normalizedCwd.startsWith(wt.path.replace(/\\/g, '/').toLowerCase()));
@@ -48,18 +43,7 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
     ? matchedWorktree.branch
     : currentBranch?.name ?? null;
 
-  const onStatusChange = useCallback(
-    (newStatus: TerminalStatus, code: number | null) => {
-      setStatus(newStatus);
-      setExitCode(code);
-      useTerminalsStore.getState().updateStatus(projectId, terminalId, newStatus, code);
-    },
-    [projectId, terminalId]
-  );
-
-  const onBusyChange = useCallback((b: boolean) => setBusy(projectId, terminalId, b), [projectId, terminalId, setBusy]);
-
-  const { containerRef, searchNext, searchPrev, searchClear } = useTerminal({ terminalId, onStatusChange, onBusyChange });
+  const { containerRef, searchNext, searchPrev, searchClear } = useTerminal({ terminalId, projectId });
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -88,14 +72,18 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
     if (e.key === 'Escape') closeSearch();
   }
 
+  function sendCommand(cmd: string) {
+    if (status === 'running') {
+      window.mekan.terminal.write(terminalId, cmd + '\r');
+    }
+  }
+
   function handleClose() {
     removeTerminal(projectId, terminalId);
   }
 
   async function handleRestart() {
     await restartTerminal(projectId, terminalId);
-    setStatus('running');
-    setExitCode(null);
   }
 
   function startRename() {
@@ -119,6 +107,8 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
         {/* Status indicator */}
         {busy ? (
           <div className="w-3 h-3 rounded-full border-[1.5px] border-accent/40 border-t-accent animate-spin flex-shrink-0" />
+        ) : waiting && status === 'running' ? (
+          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-amber-400 animate-pulse shadow-[0_0_4px_rgba(251,191,36,0.4)]" title="Waiting for input" />
         ) : (
           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors ${
             status === 'running' ? 'bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]' : 'bg-zinc-600'
@@ -161,6 +151,25 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
           <span className="text-xxs text-zinc-700 bg-surface-3 px-1.5 py-0.5 rounded font-mono flex-shrink-0" title={cwd}>WT</span>
         )}
         <div className="flex-1 min-w-0" />
+        {hovered && !editing && status === 'running' && (
+          <div className="flex items-center gap-1 animate-fade-in mr-1">
+            {[
+              { label: 'clear', cmd: '/clear', title: '/clear (Claude Code)' },
+              { label: 'compact', cmd: '/compact', title: '/compact (Claude Code)' },
+              { label: 'claude', cmd: 'claude' },
+              { label: 'claude !', cmd: 'claude --dangerously-skip-permissions', title: 'Claude (skip permissions)' },
+            ].map((shortcut) => (
+              <button
+                key={shortcut.label}
+                onClick={() => sendCommand(shortcut.cmd)}
+                className="text-xxs px-1.5 py-0.5 rounded bg-surface-3 text-zinc-500 hover:text-white hover:bg-accent/20 transition-all font-medium"
+                title={shortcut.title ?? shortcut.cmd}
+              >
+                {shortcut.label}
+              </button>
+            ))}
+          </div>
+        )}
         {hovered && !editing && (
           <div className="flex items-center gap-0.5 animate-fade-in">
             {totalCount != null && totalCount > 1 && index != null && (

@@ -93,7 +93,7 @@ app.whenReady().then(() => {
   filesIpc.register();
 
   ipcMain.handle('shell:open-external', (_event, url: string) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
+    if (url.startsWith('https://')) shell.openExternal(url);
   });
 
   ipcMain.on('window:minimize', () => mainWindow?.minimize());

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { TerminalInstance, ShellType, TerminalConfig } from '@shared/types';
 import { useProjectsStore } from './projects';
+import { destroyTerminal } from './terminal-monitor';
 
 const EMPTY: TerminalInstance[] = [];
 
@@ -18,7 +19,7 @@ interface TerminalsState {
   terminals: Record<string, TerminalInstance[]>;
   savedCounts: Record<string, number>;
   availableShells: ShellType[];
-  notifiedProjectIds: Set<string>;
+  notifiedProjectIds: Record<string, boolean>;
 
   loadShells(): Promise<void>;
   loadSavedCounts(projectIds: string[]): Promise<void>;
@@ -30,6 +31,7 @@ interface TerminalsState {
   reorderTerminals(projectId: string, fromIndex: number, toIndex: number): void;
   updateStatus(projectId: string, terminalId: string, status: TerminalInstance['status'], exitCode: number | null): void;
   setBusy(projectId: string, terminalId: string, busy: boolean): void;
+  setWaiting(projectId: string, terminalId: string, waiting: boolean): void;
   clearNotification(projectId: string): void;
   getTerminals(projectId: string): TerminalInstance[];
   getServerTerminal(projectId: string): TerminalInstance | undefined;
@@ -40,7 +42,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   terminals: {},
   savedCounts: {},
   availableShells: [],
-  notifiedProjectIds: new Set(),
+  notifiedProjectIds: {},
 
   async loadShells() {
     const shells = await window.mekan.terminal.getAvailableShells();
@@ -88,6 +90,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       isServer,
       name,
       busy: false,
+      waiting: false,
     };
     const updated = [...(current), instance];
     set((s) => ({
@@ -114,6 +117,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   },
 
   removeTerminal(projectId, terminalId) {
+    destroyTerminal(terminalId);
     window.mekan.terminal.kill(terminalId);
     const updated = (get().terminals[projectId] || []).filter((t) => t.id !== terminalId);
     set((s) => ({
@@ -125,13 +129,14 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   async restartTerminal(projectId, terminalId) {
     const old = (get().terminals[projectId] || []).find((t) => t.id === terminalId);
     if (!old) return;
+    destroyTerminal(terminalId);
     const newId = await window.mekan.terminal.restart(terminalId);
     if (!newId) return;
     set((s) => ({
       terminals: {
         ...s.terminals,
         [projectId]: (s.terminals[projectId] || []).map((t) =>
-          t.id === terminalId ? { ...t, id: newId, status: 'running' as const, exitCode: null } : t
+          t.id === terminalId ? { ...t, id: newId, status: 'running' as const, exitCode: null, busy: false, waiting: false } : t
         ),
       },
     }));
@@ -187,17 +192,30 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       const isActiveProject = useProjectsStore.getState().activeProjectId === projectId;
       if (!isActiveProject) {
         window.mekan.window.flashIfBlurred();
-        set((s) => ({ notifiedProjectIds: new Set(s.notifiedProjectIds).add(projectId) }));
+        set((s) => ({ notifiedProjectIds: { ...s.notifiedProjectIds, [projectId]: true } }));
       }
     }
   },
 
+  setWaiting(projectId, terminalId, waiting) {
+    const terminals = get().terminals[projectId] || [];
+    const terminal = terminals.find((t) => t.id === terminalId);
+    if (!terminal || terminal.waiting === waiting) return;
+    set((s) => ({
+      terminals: {
+        ...s.terminals,
+        [projectId]: (s.terminals[projectId] || []).map((t) =>
+          t.id === terminalId ? { ...t, waiting } : t
+        ),
+      },
+    }));
+  },
+
   clearNotification(projectId) {
     set((s) => {
-      if (!s.notifiedProjectIds.has(projectId)) return s;
-      const next = new Set(s.notifiedProjectIds);
-      next.delete(projectId);
-      return { notifiedProjectIds: next };
+      if (!s.notifiedProjectIds[projectId]) return s;
+      const { [projectId]: _, ...rest } = s.notifiedProjectIds;
+      return { notifiedProjectIds: rest };
     });
   },
 

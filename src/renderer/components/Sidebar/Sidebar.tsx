@@ -101,7 +101,7 @@ export default function Sidebar({ onToggleServer, serverPopupOpen, onCollapse }:
             <ProjectItem
               project={project}
               active={project.id === activeProjectId}
-              notified={notifiedProjectIds.has(project.id)}
+              notified={!!notifiedProjectIds[project.id]}
               onClick={() => {
                 setActiveProject(project.id);
                 clearNotification(project.id);

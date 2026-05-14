@@ -54,7 +54,7 @@ export function register() {
     const projects = configStore.readProjects() as Project[];
     const project = projects.find((p) => p.id === id);
     if (project) {
-      (project as any).serverCommand = command;
+      project.serverCommand = command;
       configStore.writeProjects(projects);
     }
   });
@@ -63,7 +63,7 @@ export function register() {
     const projects = configStore.readProjects() as Project[];
     const project = projects.find((p) => p.id === id);
     if (project) {
-      (project as any).worktreeBasePath = basePath || undefined;
+      project.worktreeBasePath = basePath || undefined;
       configStore.writeProjects(projects);
     }
   });
@@ -100,7 +100,7 @@ export function register() {
     const projects = configStore.readProjects() as Project[];
     const project = projects.find((p) => p.id === id);
     if (project) {
-      (project as any).logo = filePath;
+      project.logo = filePath;
       configStore.writeProjects(projects);
     }
     return filePath;
@@ -110,7 +110,7 @@ export function register() {
     const projects = configStore.readProjects() as Project[];
     const project = projects.find((p) => p.id === id);
     if (project) {
-      delete (project as any).logo;
+      delete project.logo;
       configStore.writeProjects(projects);
     }
   });

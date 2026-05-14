@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useGitStore } from '../../stores/git';
 import { useProjectsStore } from '../../stores/projects';
@@ -13,6 +13,7 @@ interface Props {
 export default function WorktreeSection({ project }: Props) {
   const projectPath = project.path;
   const worktrees = useGitStore((s) => s.worktrees);
+  const branches = useGitStore((s) => s.branches);
   const addWorktree = useGitStore((s) => s.addWorktree);
   const removeWorktree = useGitStore((s) => s.removeWorktree);
   const collapsed = useGitStore((s) => s.collapsed['worktrees']);
@@ -24,6 +25,9 @@ export default function WorktreeSection({ project }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [basePath, setBasePath] = useState(project.worktreeBasePath || '');
   const [confirmRemove, setConfirmRemove] = useState<{ path: string; branch: string } | null>(null);
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [branchFilter, setBranchFilter] = useState('');
+  const branchPickerRef = useRef<HTMLDivElement>(null);
   const allTerminals = useTerminalsStore((s) => s.terminals);
   const spawnTerminal = useTerminalsStore((s) => s.spawnTerminal);
   const removeTerminal = useTerminalsStore((s) => s.removeTerminal);
@@ -33,9 +37,42 @@ export default function WorktreeSection({ project }: Props) {
   const defaultBase = `${projectPath}\\..\\worktrees`;
   const effectiveBase = project.worktreeBasePath || defaultBase;
 
+  const worktreeBranches = useMemo(() => new Set(worktrees.map((wt) => wt.branch)), [worktrees]);
+  const availableBranches = useMemo(
+    () => branches.filter((b) => !b.current && !worktreeBranches.has(b.name)),
+    [branches, worktreeBranches]
+  );
+  const filteredBranches = useMemo(
+    () => branchFilter
+      ? availableBranches.filter((b) => b.name.toLowerCase().includes(branchFilter.toLowerCase()))
+      : availableBranches,
+    [availableBranches, branchFilter]
+  );
+
+  const resolvedFolder = folderName.trim() || branch.trim() || '';
+  const previewPath = resolvedFolder ? `${effectiveBase}\\${resolvedFolder}` : null;
+
   useEffect(() => {
     setBasePath(project.worktreeBasePath || '');
   }, [project.id]);
+
+  useEffect(() => {
+    if (!showBranchPicker) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (branchPickerRef.current && !branchPickerRef.current.contains(e.target as Node)) {
+        setShowBranchPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showBranchPicker]);
+
+  function selectBranch(name: string) {
+    setBranch(name);
+    setCreateNew(false);
+    setShowBranchPicker(false);
+    setBranchFilter('');
+  }
 
   async function handleCreate() {
     if (!branch.trim()) return;
@@ -46,6 +83,7 @@ export default function WorktreeSection({ project }: Props) {
     setFolderName('');
     setCreateNew(false);
     setShowCreate(false);
+    setBranchFilter('');
   }
 
   function handleSaveBasePath() {
@@ -126,13 +164,64 @@ export default function WorktreeSection({ project }: Props) {
           )}
           {showCreate && (
             <div className="p-3 border-b border-border space-y-2.5 animate-fade-in">
-              <input
-                className="w-full bg-surface-3 text-white text-xs px-2.5 py-1.5 rounded-md outline-none border border-border focus:border-accent/50 focus:shadow-glow-sm transition-all"
-                placeholder="Branch name"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              />
+              {/* Branch input with picker */}
+              <div className="relative" ref={branchPickerRef}>
+                <div className="flex gap-1.5">
+                  <input
+                    className="flex-1 bg-surface-3 text-white text-xs px-2.5 py-1.5 rounded-md outline-none border border-border focus:border-accent/50 focus:shadow-glow-sm transition-all min-w-0"
+                    placeholder={createNew ? 'New branch name' : 'Branch name'}
+                    value={branch}
+                    onChange={(e) => { setBranch(e.target.value); setCreateNew(true); }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                  />
+                  {availableBranches.length > 0 && (
+                    <button
+                      onClick={() => { setShowBranchPicker(!showBranchPicker); setBranchFilter(''); }}
+                      className={`flex items-center gap-1 text-xxs px-2 py-1.5 rounded-md border transition-all font-medium flex-shrink-0 ${
+                        showBranchPicker
+                          ? 'bg-accent/20 text-accent border-accent/50'
+                          : 'bg-surface-3 text-zinc-500 border-border hover:text-white hover:border-accent/50'
+                      }`}
+                      title="Pick existing branch"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                        <circle cx="5" cy="3" r="2" stroke="currentColor" strokeWidth="1.5"/>
+                        <circle cx="5" cy="13" r="2" stroke="currentColor" strokeWidth="1.5"/>
+                        <circle cx="12" cy="6" r="2" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M5 5v6M10.5 7.5C9 9 7 10 5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      Pick
+                    </button>
+                  )}
+                </div>
+                {showBranchPicker && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-surface-2 border border-border-hover rounded-lg shadow-panel overflow-hidden animate-fade-in">
+                    <div className="p-1.5">
+                      <input
+                        className="w-full bg-surface-3 text-white text-xxs px-2 py-1 rounded outline-none border border-border focus:border-accent/50 transition-all"
+                        placeholder="Filter branches..."
+                        value={branchFilter}
+                        onChange={(e) => setBranchFilter(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-36 overflow-y-auto">
+                      {filteredBranches.length === 0 && (
+                        <div className="text-xxs text-zinc-700 px-3 py-2">No matching branches</div>
+                      )}
+                      {filteredBranches.map((b) => (
+                        <button
+                          key={b.name}
+                          className="w-full text-left px-3 py-1.5 text-xs text-zinc-400 hover:bg-surface-3 hover:text-white transition-colors truncate"
+                          onClick={() => selectBranch(b.name)}
+                        >
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <input
                 className="w-full bg-surface-3 text-white text-xs px-2.5 py-1.5 rounded-md outline-none border border-border focus:border-accent/50 focus:shadow-glow-sm transition-all font-mono"
                 placeholder={branch.trim() || 'Folder name (defaults to branch)'}
@@ -140,16 +229,27 @@ export default function WorktreeSection({ project }: Props) {
                 onChange={(e) => setFolderName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               />
-              <div className="text-xxs text-zinc-700 truncate" title={`${effectiveBase}\\${folderName.trim() || branch.trim() || '...'}`}>
-                {effectiveBase}\{folderName.trim() || branch.trim() || '...'}
-              </div>
+              {/* Path preview */}
+              {previewPath ? (
+                <div className="bg-surface-3 rounded-md px-2.5 py-2 border border-border">
+                  <div className="text-xxs text-zinc-600 mb-1">Will create at:</div>
+                  <div className="text-xxs text-zinc-300 font-mono break-all" title={previewPath}>{previewPath}</div>
+                </div>
+              ) : (
+                <div className="text-xxs text-zinc-700 italic">Enter a branch name to preview the path</div>
+              )}
               <label className="flex items-center gap-2 text-xxs text-zinc-500 cursor-pointer select-none">
                 <input type="checkbox" checked={createNew} onChange={(e) => setCreateNew(e.target.checked)} className="rounded accent-accent" />
                 Create new branch
               </label>
               <button
                 onClick={handleCreate}
-                className="w-full bg-accent hover:bg-accent-hover text-white text-xs py-1.5 rounded-md transition-all duration-200 font-medium hover:shadow-glow-sm"
+                disabled={!branch.trim()}
+                className={`w-full text-xs py-1.5 rounded-md transition-all duration-200 font-medium ${
+                  branch.trim()
+                    ? 'bg-accent hover:bg-accent-hover text-white hover:shadow-glow-sm'
+                    : 'bg-surface-3 text-zinc-600 cursor-not-allowed'
+                }`}
               >
                 Create Worktree
               </button>

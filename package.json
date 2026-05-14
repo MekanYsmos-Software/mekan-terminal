@@ -1,6 +1,6 @@
 {
   "name": "mekan-terminal",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Terminal manager with project sidebar, split panes, and git worktree management",
   "main": "dist/main/index.js",
   "scripts": {

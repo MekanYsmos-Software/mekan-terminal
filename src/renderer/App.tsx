@@ -87,15 +87,15 @@ export default function App() {
         <div className="flex items-center justify-center gap-3 px-4 py-1.5 bg-accent/15 border-b border-accent/30 flex-shrink-0">
           <span className="text-xs text-zinc-300">
             {updateReady
-              ? `Versão ${updateVersion} pronta para instalar`
-              : `Baixando versão ${updateVersion}...`}
+              ? `Version ${updateVersion} ready to install`
+              : `Downloading version ${updateVersion}...`}
           </span>
           {updateReady ? (
             <button
               onClick={() => window.mekan.updater.install()}
               className="px-3 py-0.5 text-xs font-medium rounded bg-accent hover:bg-accent/80 text-white transition-colors"
             >
-              Reiniciar e atualizar
+              Restart and update
             </button>
           ) : (
             <div className="w-3 h-3 border-2 border-accent/40 border-t-accent rounded-full animate-spin" />

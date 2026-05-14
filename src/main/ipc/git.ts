@@ -19,16 +19,15 @@ export function register() {
     const summary = await git.branchLocal();
     const branches: GitBranch[] = [];
 
-    for (const [name, info] of Object.entries(summary.branches)) {
-      let aheadBehind: { ahead: number; behind: number } | null = null;
-      try {
-        const status = await git.status(['-b', '--porcelain=v2']);
-        const branchStatus = status;
-        aheadBehind = { ahead: branchStatus.ahead, behind: branchStatus.behind };
-      } catch {
-        aheadBehind = null;
-      }
+    let aheadBehind: { ahead: number; behind: number } | null = null;
+    try {
+      const status = await git.status(['-b', '--porcelain=v2']);
+      aheadBehind = { ahead: status.ahead, behind: status.behind };
+    } catch {
+      aheadBehind = null;
+    }
 
+    for (const [name, info] of Object.entries(summary.branches)) {
       branches.push({
         name,
         current: info.current,

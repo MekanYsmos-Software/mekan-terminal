@@ -8,7 +8,7 @@ export interface Project {
   worktreeBasePath?: string;
 }
 
-export type TerminalStatus = 'idle' | 'running' | 'exited';
+export type TerminalStatus = 'running' | 'exited';
 export type ShellType = 'pwsh' | 'cmd' | 'wsl';
 
 export interface TerminalInstance {
@@ -21,6 +21,7 @@ export interface TerminalInstance {
   isServer: boolean;
   name: string;
   busy: boolean;
+  waiting: boolean;
 }
 
 export interface TerminalConfig {

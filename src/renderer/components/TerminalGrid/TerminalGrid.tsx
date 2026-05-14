@@ -31,18 +31,18 @@ export default function TerminalGrid() {
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
   const activeProjectName = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.name ?? null);
   const activeProjectPath = useProjectsStore((s) => s.projects.find((p) => p.id === s.activeProjectId)?.path ?? null);
-  const allTerminals = useTerminalsStore((s) => s.terminals);
+  const allProjectTerminals = useTerminalsStore((s) => activeProjectId ? (s.terminals[activeProjectId] ?? EMPTY_TERMINALS) : EMPTY_TERMINALS);
   const spawnTerminal = useTerminalsStore((s) => s.spawnTerminal);
   const restoreTerminals = useTerminalsStore((s) => s.restoreTerminals);
   const availableShells = useTerminalsStore((s) => s.availableShells);
   const loadShells = useTerminalsStore((s) => s.loadShells);
   const worktrees = useGitStore((s) => s.worktrees);
-  const allProjectTerminals = activeProjectId ? (allTerminals[activeProjectId] ?? EMPTY_TERMINALS) : EMPTY_TERMINALS;
   const terminals = useMemo(() => allProjectTerminals.filter((t) => !t.isServer), [allProjectTerminals]);
 
   const [showNewMenu, setShowNewMenu] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
   const tasksButtonRef = useRef<HTMLButtonElement>(null);
+  const newMenuRef = useRef<HTMLDivElement>(null);
   const restoringRef = useRef<string | null>(null);
   const projectTasks = useTasksStore((s) => activeProjectId ? (s.tasks[activeProjectId] ?? EMPTY_TASKS) : EMPTY_TASKS);
   const loadTasks = useTasksStore((s) => s.loadTasks);
@@ -53,6 +53,17 @@ export default function TerminalGrid() {
   useEffect(() => {
     loadShells();
   }, [loadShells]);
+
+  useEffect(() => {
+    if (!showNewMenu) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node)) {
+        setShowNewMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNewMenu]);
 
   useEffect(() => {
     if (activeProjectId) loadTasks(activeProjectId);
@@ -98,7 +109,7 @@ export default function TerminalGrid() {
         )}
         <span className="text-xxs text-zinc-600 font-mono">{terminals.length}<span className="text-zinc-700">/6</span></span>
         {canAdd && (
-          <div className="relative">
+          <div className="relative" ref={newMenuRef}>
             <button
               onClick={() => setShowNewMenu(!showNewMenu)}
               className="flex items-center gap-1.5 text-xxs text-zinc-500 hover:text-white px-2.5 py-1 rounded-md bg-surface-3 hover:bg-accent hover:shadow-glow-sm transition-all duration-200 font-medium"
