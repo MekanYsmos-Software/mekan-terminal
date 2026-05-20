@@ -68,8 +68,13 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     if (!isServer && current.filter((t) => !t.isServer).length >= 6) return '';
     if (isServer && current.some((t) => t.isServer && t.cwd === cwd)) return '';
     const shell = shellType || get().availableShells[0] || 'cmd';
-    const id = await window.mekan.terminal.spawn(projectId, cwd, shell);
-    const shellLabel = shell === 'pwsh' ? 'PS' : shell === 'wsl' ? 'WSL' : 'CMD';
+    let id: string;
+    if (shell === 'claude') {
+      id = await window.mekan.claude.spawn(projectId, cwd);
+    } else {
+      id = await window.mekan.terminal.spawn(projectId, cwd, shell);
+    }
+    const shellLabel = shell === 'pwsh' ? 'PS' : shell === 'wsl' ? 'WSL' : shell === 'claude' ? 'Claude' : 'CMD';
     let name: string;
     if (isServer && serverName) {
       name = serverName;
@@ -118,7 +123,12 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
 
   removeTerminal(projectId, terminalId) {
     destroyTerminal(terminalId);
-    window.mekan.terminal.kill(terminalId);
+    const terminal = (get().terminals[projectId] || []).find((t) => t.id === terminalId);
+    if (terminal?.shell === 'claude') {
+      window.mekan.claude.kill(terminalId);
+    } else {
+      window.mekan.terminal.kill(terminalId);
+    }
     const updated = (get().terminals[projectId] || []).filter((t) => t.id !== terminalId);
     set((s) => ({
       terminals: { ...s.terminals, [projectId]: updated },
