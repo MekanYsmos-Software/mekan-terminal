@@ -7,7 +7,9 @@ import * as projectsIpc from './ipc/projects';
 import * as terminalIpc from './ipc/terminal';
 import * as gitIpc from './ipc/git';
 import * as filesIpc from './ipc/files';
+import * as claudeIpc from './ipc/claude';
 import * as ptyManager from './pty-manager';
+import * as claudeManager from './claude-manager';
 
 autoUpdater.logger = log;
 if (log.transports.file) {
@@ -91,9 +93,10 @@ app.whenReady().then(() => {
   terminalIpc.register();
   gitIpc.register();
   filesIpc.register();
+  claudeIpc.register();
 
   ipcMain.handle('shell:open-external', (_event, url: string) => {
-    if (url.startsWith('https://')) shell.openExternal(url);
+    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
   });
 
   ipcMain.on('window:minimize', () => mainWindow?.minimize());
@@ -114,6 +117,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   ptyManager.killAll();
+  claudeManager.killAll();
 });
 
 app.on('window-all-closed', () => {
