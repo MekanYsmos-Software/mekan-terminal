@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTerminal } from './useTerminal';
 import { useTerminalsStore } from '../../stores/terminals';
 import { useGitStore } from '../../stores/git';
+import { pasteToTerminal } from '../../stores/terminal-monitor';
+import ClaudePane from '../ClaudePane/ClaudePane';
 
 interface Props {
   terminalId: string;
@@ -44,6 +46,72 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
     : currentBranch?.name ?? null;
 
   const { containerRef, searchNext, searchPrev, searchClear } = useTerminal({ terminalId, projectId });
+  const [dropHighlight, setDropHighlight] = useState(false);
+
+  useEffect(() => {
+    const el = paneRef.current;
+    if (!el) return;
+
+    function onDragEnter(e: DragEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      setDropHighlight(true);
+    }
+
+    function onDragOver(e: DragEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      setDropHighlight(true);
+    }
+
+    function onDragLeave(e: DragEvent) {
+      if (el.contains(e.relatedTarget as Node)) return;
+      setDropHighlight(false);
+    }
+
+    function onDrop(e: DragEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDropHighlight(false);
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const paths = Array.from(files).map((f) => {
+          const p = window.mekan.utils.getPathForFile(f);
+          if (!p) return '';
+          return p.includes(' ') ? `"${p}"` : p;
+        }).filter(Boolean);
+        if (paths.length > 0) {
+          window.mekan.terminal.write(terminalId, paths.join(' '));
+        }
+        return;
+      }
+
+      const uri = e.dataTransfer?.getData('text/uri-list');
+      if (uri) {
+        window.mekan.terminal.write(terminalId, uri.split('\n').filter(Boolean).join(' '));
+        return;
+      }
+
+      const text = e.dataTransfer?.getData('text/plain');
+      if (text) {
+        pasteToTerminal(terminalId, projectId, text);
+      }
+    }
+
+    el.addEventListener('dragenter', onDragEnter, true);
+    el.addEventListener('dragover', onDragOver, true);
+    el.addEventListener('dragleave', onDragLeave, true);
+    el.addEventListener('drop', onDrop, true);
+    return () => {
+      el.removeEventListener('dragenter', onDragEnter, true);
+      el.removeEventListener('dragover', onDragOver, true);
+      el.removeEventListener('dragleave', onDragLeave, true);
+      el.removeEventListener('drop', onDrop, true);
+    };
+  }, [terminalId, projectId]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -151,7 +219,7 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
           <span className="text-xxs text-zinc-700 bg-surface-3 px-1.5 py-0.5 rounded font-mono flex-shrink-0" title={cwd}>WT</span>
         )}
         <div className="flex-1 min-w-0" />
-        {hovered && !editing && status === 'running' && (
+        {hovered && !editing && status === 'running' && terminal?.shell !== 'claude' && (
           <div className="flex items-center gap-1 animate-fade-in mr-1">
             {[
               { label: 'clear', cmd: '/clear', title: '/clear (Claude Code)' },
@@ -236,7 +304,14 @@ export default function TerminalPane({ terminalId, projectId, cwd, hideHeader, i
         </div>
       )}
 
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
+      {terminal?.shell === 'claude' ? (
+        <ClaudePane terminalId={terminalId} projectId={projectId} cwd={cwd} />
+      ) : (
+        <div
+          ref={containerRef}
+          className={`flex-1 min-h-0 overflow-hidden transition-shadow duration-150 ${dropHighlight ? 'ring-1 ring-inset ring-accent/50' : ''}`}
+        />
+      )}
     </div>
   );
 }
