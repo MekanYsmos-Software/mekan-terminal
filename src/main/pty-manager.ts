@@ -72,11 +72,26 @@ function hasWsl(): boolean {
   }
 }
 
+export function findClaude(): string | null {
+  if (shellPaths['claude']) return shellPaths['claude'];
+  try {
+    const result = execSync('where.exe claude', { encoding: 'utf-8', timeout: 5000 }).trim();
+    const exePath = result.split('\n').find((l) => l.trim().endsWith('.exe'))?.trim();
+    if (exePath && fs.existsSync(exePath)) {
+      shellPaths['claude'] = exePath;
+      return exePath;
+    }
+  } catch {}
+  shellPaths['claude'] = '';
+  return null;
+}
+
 export function getAvailableShells(): ShellType[] {
   const shells: ShellType[] = [];
   if (findPwsh()) shells.push('pwsh');
   shells.push('cmd');
   if (hasWsl()) shells.push('wsl');
+  if (findClaude()) shells.push('claude');
   return shells;
 }
 
@@ -98,6 +113,11 @@ function resolveShell(shellType: ShellType): { exe: string; args: string[] } {
         'Clear-Host',
       );
       return { exe: p, args: ['-NoLogo', '-NoExit', '-Command', parts.join('; ')] };
+    }
+    case 'claude': {
+      const c = findClaude();
+      if (!c) return { exe: 'cmd.exe', args: [] };
+      return { exe: c, args: [] };
     }
     case 'wsl':
       return { exe: 'wsl.exe', args: [] };
