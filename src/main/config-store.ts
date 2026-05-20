@@ -4,8 +4,10 @@ import os from 'os';
 
 const MEKAN_DIR = path.join(os.homedir(), '.mekan');
 const PROJECTS_FILE = path.join(MEKAN_DIR, 'projects.json');
+const GROUPS_FILE = path.join(MEKAN_DIR, 'groups.json');
 const LAYOUTS_DIR = path.join(MEKAN_DIR, 'layouts');
 const TASKS_DIR = path.join(MEKAN_DIR, 'tasks');
+const CLAUDE_DIR = path.join(MEKAN_DIR, 'claude');
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) {
@@ -17,6 +19,7 @@ export function init() {
   ensureDir(MEKAN_DIR);
   ensureDir(LAYOUTS_DIR);
   ensureDir(TASKS_DIR);
+  ensureDir(CLAUDE_DIR);
 }
 
 export function readProjects(): unknown[] {
@@ -28,6 +31,17 @@ export function readProjects(): unknown[] {
 export function writeProjects(projects: unknown[]) {
   ensureDir(MEKAN_DIR);
   fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8');
+}
+
+export function readGroups(): unknown[] {
+  if (!fs.existsSync(GROUPS_FILE)) return [];
+  const raw = fs.readFileSync(GROUPS_FILE, 'utf-8');
+  return JSON.parse(raw);
+}
+
+export function writeGroups(groups: unknown[]) {
+  ensureDir(MEKAN_DIR);
+  fs.writeFileSync(GROUPS_FILE, JSON.stringify(groups, null, 2), 'utf-8');
 }
 
 export function readLayout(projectId: string): unknown | null {
@@ -54,5 +68,20 @@ export function writeTasks(projectId: string, tasks: unknown[]) {
   ensureDir(TASKS_DIR);
   const file = path.join(TASKS_DIR, `${projectId}.json`);
   fs.writeFileSync(file, JSON.stringify(tasks, null, 2), 'utf-8');
+}
+
+export function readClaudeSession(projectId: string, terminalId: string): unknown | null {
+  const dir = path.join(CLAUDE_DIR, projectId);
+  const file = path.join(dir, `${terminalId}.json`);
+  if (!fs.existsSync(file)) return null;
+  const raw = fs.readFileSync(file, 'utf-8');
+  return JSON.parse(raw);
+}
+
+export function writeClaudeSession(projectId: string, terminalId: string, session: unknown) {
+  const dir = path.join(CLAUDE_DIR, projectId);
+  ensureDir(dir);
+  const file = path.join(dir, `${terminalId}.json`);
+  fs.writeFileSync(file, JSON.stringify(session, null, 2), 'utf-8');
 }
 

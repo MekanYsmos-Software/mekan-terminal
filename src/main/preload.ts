@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron';
-import type { IpcApi, TerminalStatus, ProjectTask, DirEntry } from '@shared/types';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import type { IpcApi, TerminalStatus, ProjectTask, DirEntry, ClaudeStreamEvent } from '@shared/types';
 
 const api: IpcApi = {
   project: {
@@ -13,6 +13,15 @@ const api: IpcApi = {
     selectFolder: () => ipcRenderer.invoke('project:select-folder'),
     setLogo: (id: string) => ipcRenderer.invoke('project:set-logo', id),
     clearLogo: (id: string) => ipcRenderer.invoke('project:clear-logo', id),
+    moveToGroup: (id: string, groupId: string) => ipcRenderer.invoke('project:move-to-group', id, groupId),
+  },
+  group: {
+    list: () => ipcRenderer.invoke('group:list'),
+    create: (name: string) => ipcRenderer.invoke('group:create', name),
+    remove: (id: string) => ipcRenderer.invoke('group:remove', id),
+    rename: (id: string, name: string) => ipcRenderer.invoke('group:rename', id, name),
+    reorder: (ids: string[]) => ipcRenderer.invoke('group:reorder', ids),
+    toggleCollapse: (id: string) => ipcRenderer.invoke('group:toggle-collapse', id),
   },
   terminal: {
     spawn: (projectId: string, cwd: string, shellType?: string) => ipcRenderer.invoke('pty:spawn', projectId, cwd, shellType),
@@ -43,8 +52,8 @@ const api: IpcApi = {
     pullRequests: (projectPath) => ipcRenderer.invoke('git:pull-requests', projectPath),
     worktreeAdd: (projectPath, path, branch, createBranch) =>
       ipcRenderer.invoke('git:worktree-add', projectPath, path, branch, createBranch),
-    worktreeRemove: (projectPath, worktreePath) =>
-      ipcRenderer.invoke('git:worktree-remove', projectPath, worktreePath),
+    worktreeRemove: (projectPath, worktreePath, deleteLocal?, deleteRemote?) =>
+      ipcRenderer.invoke('git:worktree-remove', projectPath, worktreePath, deleteLocal, deleteRemote),
     getUser: (projectPath) => ipcRenderer.invoke('git:get-user', projectPath),
     setUser: (projectPath, name, email) => ipcRenderer.invoke('git:set-user', projectPath, name, email),
   },
@@ -63,6 +72,30 @@ const api: IpcApi = {
   },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+  },
+  claude: {
+    spawn: (projectId: string, cwd: string, sessionId?: string) =>
+      ipcRenderer.invoke('claude:spawn', projectId, cwd, sessionId),
+    send: (terminalId: string, message: string) =>
+      ipcRenderer.send('claude:send', terminalId, message),
+    abort: (terminalId: string) =>
+      ipcRenderer.send('claude:abort', terminalId),
+    kill: (terminalId: string) =>
+      ipcRenderer.send('claude:kill', terminalId),
+    onEvent: (terminalId: string, callback: (event: ClaudeStreamEvent) => void) => {
+      const channel = `claude:event:${terminalId}`;
+      const listener = (_event: Electron.IpcRendererEvent, data: ClaudeStreamEvent) =>
+        callback(data);
+      ipcRenderer.on(channel, listener);
+      return () => ipcRenderer.removeListener(channel, listener);
+    },
+    loadSession: (projectId: string, terminalId: string) =>
+      ipcRenderer.invoke('claude:session:load', projectId, terminalId),
+    saveSession: (projectId: string, terminalId: string, session: unknown) =>
+      ipcRenderer.invoke('claude:session:save', projectId, terminalId, session),
+  },
+  utils: {
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
   },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
