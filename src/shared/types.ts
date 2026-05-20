@@ -1,15 +1,25 @@
+export interface ProjectGroup {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  order: number;
+}
+
+export const DEFAULT_GROUP_ID = '__general__';
+
 export interface Project {
   id: string;
   name: string;
   path: string;
   order: number;
+  groupId: string;
   serverCommand?: string;
   logo?: string;
   worktreeBasePath?: string;
 }
 
 export type TerminalStatus = 'running' | 'exited';
-export type ShellType = 'pwsh' | 'cmd' | 'wsl';
+export type ShellType = 'pwsh' | 'cmd' | 'wsl' | 'claude';
 
 export interface TerminalInstance {
   id: string;
@@ -30,6 +40,37 @@ export interface TerminalConfig {
   name: string;
   isServer: boolean;
 }
+
+export interface ClaudeMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  toolUse?: ToolUseEntry[];
+  timestamp: string;
+  partial?: boolean;
+}
+
+export interface ToolUseEntry {
+  tool: string;
+  summary: string;
+  input: Record<string, unknown>;
+  output?: string;
+}
+
+export interface ClaudeSession {
+  sessionId: string;
+  messages: ClaudeMessage[];
+  createdAt: string;
+  lastMessageAt: string;
+}
+
+export type ClaudeStreamEvent =
+  | { type: 'init'; sessionId: string; tools: string[] }
+  | { type: 'text'; text: string; partial: boolean }
+  | { type: 'tool_use'; tool: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool: string; output: string }
+  | { type: 'done'; cost?: number; duration?: number }
+  | { type: 'error'; message: string };
 
 export interface ProjectLayout {
   projectId: string;
@@ -95,6 +136,15 @@ export interface IpcApi {
     selectFolder(): Promise<string | null>;
     setLogo(id: string): Promise<string | null>;
     clearLogo(id: string): Promise<void>;
+    moveToGroup(id: string, groupId: string): Promise<void>;
+  };
+  group: {
+    list(): Promise<ProjectGroup[]>;
+    create(name: string): Promise<ProjectGroup>;
+    remove(id: string): Promise<void>;
+    rename(id: string, name: string): Promise<void>;
+    reorder(ids: string[]): Promise<void>;
+    toggleCollapse(id: string): Promise<void>;
   };
   terminal: {
     spawn(projectId: string, cwd: string, shellType?: ShellType): Promise<string>;
@@ -113,7 +163,7 @@ export interface IpcApi {
     isDirty(projectPath: string): Promise<boolean>;
     pullRequests(projectPath: string): Promise<GitPullRequest[]>;
     worktreeAdd(projectPath: string, path: string, branch: string, createBranch: boolean): Promise<void>;
-    worktreeRemove(projectPath: string, worktreePath: string): Promise<void>;
+    worktreeRemove(projectPath: string, worktreePath: string, deleteLocal?: string, deleteRemote?: string): Promise<void>;
     getUser(projectPath: string): Promise<{ name: string; email: string }>;
     setUser(projectPath: string, name: string, email: string): Promise<void>;
   };
@@ -132,6 +182,18 @@ export interface IpcApi {
   };
   shell: {
     openExternal(url: string): Promise<void>;
+  };
+  claude: {
+    spawn(projectId: string, cwd: string, sessionId?: string): Promise<string>;
+    send(terminalId: string, message: string): void;
+    abort(terminalId: string): void;
+    kill(terminalId: string): void;
+    onEvent(terminalId: string, callback: (event: ClaudeStreamEvent) => void): () => void;
+    loadSession(projectId: string, terminalId: string): Promise<ClaudeSession | null>;
+    saveSession(projectId: string, terminalId: string, session: ClaudeSession): Promise<void>;
+  };
+  utils: {
+    getPathForFile(file: File): string;
   };
   window: {
     minimize(): void;
