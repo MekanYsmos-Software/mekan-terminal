@@ -8,6 +8,7 @@ import * as terminalIpc from './ipc/terminal';
 import * as gitIpc from './ipc/git';
 import * as filesIpc from './ipc/files';
 import * as claudeIpc from './ipc/claude';
+import * as clipboardIpc from './ipc/clipboard';
 import * as ptyManager from './pty-manager';
 import * as claudeManager from './claude-manager';
 
@@ -94,6 +95,7 @@ app.whenReady().then(() => {
   gitIpc.register();
   filesIpc.register();
   claudeIpc.register();
+  clipboardIpc.register();
 
   ipcMain.handle('shell:open-external', (_event, url: string) => {
     if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url);
