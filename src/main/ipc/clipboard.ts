@@ -23,15 +23,15 @@ function ensureGitignored(cwd: string) {
 
 export function register() {
   ipcMain.handle('clipboard:paste-image', async (_event, terminalId: string) => {
-    const info = ptyManager.getTerminalInfo(terminalId);
-    if (!info) return null;
-
-    const image = clipboard.readImage();
-    if (image.isEmpty()) {
-      return { kind: 'text' as const, text: clipboard.readText() };
-    }
-
     try {
+      const info = ptyManager.getTerminalInfo(terminalId);
+      if (!info) return null;
+
+      const image = clipboard.readImage();
+      if (image.isEmpty()) {
+        return { kind: 'text' as const, text: clipboard.readText() };
+      }
+
       const tmpDir = path.join(info.cwd, '.mekan', 'tmp');
       fs.mkdirSync(tmpDir, { recursive: true });
       const filePath = path.join(tmpDir, `paste-${Date.now()}.png`);

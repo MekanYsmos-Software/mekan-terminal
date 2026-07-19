@@ -8,5 +8,15 @@ export function toShellPath(winPath: string, shellType: ShellType): string {
       result = `/mnt/${match[1].toLowerCase()}/${match[2].replace(/\\/g, '/')}`;
     }
   }
-  return result.includes(' ') ? `"${result}"` : result;
+
+  if (shellType === 'cmd') {
+    return `"${result}"`;
+  }
+
+  if (shellType === 'wsl') {
+    return `'${result.replace(/'/g, "'\\''")}'`;
+  }
+
+  // pwsh
+  return `'${result.replace(/'/g, "''")}'`;
 }

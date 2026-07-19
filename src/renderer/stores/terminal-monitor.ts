@@ -100,7 +100,7 @@ export function getOrCreateTerminal(terminalId: string, projectId: string): Cach
         e.preventDefault();
         window.mekan.terminal.pasteImage(terminalId).then((result) => {
           if (result?.text) term.paste(result.text);
-        });
+        }).catch(() => navigator.clipboard.readText().then((t) => { if (t) term.paste(t); }));
       }
       return false;
     }
