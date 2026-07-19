@@ -124,6 +124,11 @@ export interface DirEntry {
   type: 'file' | 'directory';
 }
 
+export type PasteResult =
+  | { kind: 'text'; text: string }
+  | { kind: 'image'; text: string }
+  | null;
+
 export interface IpcApi {
   project: {
     list(): Promise<Project[]>;
@@ -153,6 +158,7 @@ export interface IpcApi {
     resize(terminalId: string, cols: number, rows: number): void;
     kill(terminalId: string): void;
     restart(terminalId: string): Promise<string | null>;
+    pasteImage(terminalId: string): Promise<PasteResult>;
     onData(terminalId: string, callback: (data: string) => void): () => void;
     onStatus(terminalId: string, callback: (status: TerminalStatus, exitCode: number | null) => void): () => void;
   };

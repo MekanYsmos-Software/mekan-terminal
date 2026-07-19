@@ -30,6 +30,7 @@ const api: IpcApi = {
     resize: (terminalId, cols, rows) => ipcRenderer.send('pty:resize', terminalId, cols, rows),
     kill: (terminalId) => ipcRenderer.send('pty:kill', terminalId),
     restart: (terminalId) => ipcRenderer.invoke('pty:restart', terminalId),
+    pasteImage: (terminalId) => ipcRenderer.invoke('clipboard:paste-image', terminalId),
     onData: (terminalId, callback) => {
       const channel = `pty:data:${terminalId}`;
       const listener = (_event: Electron.IpcRendererEvent, data: string) => callback(data);

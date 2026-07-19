@@ -98,8 +98,8 @@ export function getOrCreateTerminal(terminalId: string, projectId: string): Cach
     if (e.ctrlKey && e.key === 'v') {
       if (e.type === 'keydown') {
         e.preventDefault();
-        navigator.clipboard.readText().then((text) => {
-          if (text) window.mekan.terminal.write(terminalId, text);
+        window.mekan.terminal.pasteImage(terminalId).then((result) => {
+          if (result?.text) term.paste(result.text);
         });
       }
       return false;
