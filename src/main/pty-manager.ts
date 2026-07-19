@@ -95,6 +95,12 @@ export function getAvailableShells(): ShellType[] {
   return shells;
 }
 
+export function getTerminalInfo(id: string): { cwd: string; shellType: ShellType } | null {
+  const entry = instances.get(id);
+  if (!entry) return null;
+  return { cwd: entry.cwd, shellType: entry.shellType };
+}
+
 function resolveShell(shellType: ShellType): { exe: string; args: string[] } {
   switch (shellType) {
     case 'pwsh': {
